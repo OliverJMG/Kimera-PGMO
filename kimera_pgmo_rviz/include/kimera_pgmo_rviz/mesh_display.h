@@ -4,14 +4,14 @@
  * @author Nathan Hughes
  */
 #pragma once
-#include <kimera_pgmo_msgs/KimeraPgmoMesh.h>
-#include <rviz/message_filter_display.h>
+#include <kimera_pgmo_msgs/msg/kimera_pgmo_mesh.hpp>
+#include <rviz_common/message_filter_display.hpp>
 
 #include <memory>
 
 #include "kimera_pgmo_rviz/visuals_map.h"
 
-namespace rviz {
+namespace rviz_common::properties {
 class BoolProperty;
 }
 
@@ -22,7 +22,7 @@ class VisibilityField;
 class TfEventBuffer;
 
 class MeshDisplay
-    : public rviz::MessageFilterDisplay<kimera_pgmo_msgs::KimeraPgmoMesh> {
+    : public rviz_common::MessageFilterDisplay<kimera_pgmo_msgs::msg::KimeraPgmoMesh> {
   Q_OBJECT
  public:
   MeshDisplay();
@@ -45,7 +45,7 @@ class MeshDisplay
   void toggleVisibilityAllSloT();
 
  private:
-  void processMessage(const kimera_pgmo_msgs::KimeraPgmoMesh::ConstPtr& msg) override;
+  void processMessage(const kimera_pgmo_msgs::msg::KimeraPgmoMesh::ConstSharedPtr msg) override;
 
   VisualsMap visuals_;
 
@@ -53,13 +53,13 @@ class MeshDisplay
   std::unique_ptr<TfEventBuffer> tf_buffer_;
 
   // properties
-  std::unique_ptr<rviz::BoolProperty> cull_;
-  std::unique_ptr<rviz::BoolProperty> lighting_;
+  std::unique_ptr<rviz_common::properties::BoolProperty> cull_;
+  std::unique_ptr<rviz_common::properties::BoolProperty> lighting_;
   // The root of the visibility tree.
   std::unique_ptr<VisibilityField> visibility_fields_;
 
   // Property to set visibility for all submaps.
-  std::unique_ptr<rviz::BoolProperty> toggle_visibility_all_property_;
+  std::unique_ptr<rviz_common::properties::BoolProperty> toggle_visibility_all_property_;
 
   inline static const std::string kNsSeparator = "/";
 

@@ -5,7 +5,7 @@
  * @author Nathan Hughes
  */
 #pragma once
-#include <voxblox_msgs/Mesh.h>
+#include <voxblox_msgs/msg/mesh.hpp>
 
 #include "kimera_pgmo/utils/mesh_interface.h"
 
@@ -13,7 +13,7 @@ namespace kimera_pgmo {
 
 class VoxbloxMsgInterface : public MeshInterface {
  public:
-  VoxbloxMsgInterface(const voxblox_msgs::Mesh& mesh);
+  VoxbloxMsgInterface(const voxblox_msgs::msg::Mesh& mesh);
 
   const BlockIndices& blockIndices() const override;
 

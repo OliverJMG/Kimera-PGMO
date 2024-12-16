@@ -1,20 +1,28 @@
 cmake_minimum_required(VERSION 3.5)
 project(kimera_pgmo_msgs)
 
-find_package(catkin REQUIRED COMPONENTS message_generation std_msgs
-                                        geometry_msgs pose_graph_tools_msgs)
+find_package(ament_cmake REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_interfaces REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
-add_message_files(FILES AbsolutePoseStamped.msg KimeraPgmoMesh.msg
-                  KimeraPgmoMeshDelta.msg TriangleIndices.msg)
-add_service_files(FILES LoadGraphMesh.srv RequestMeshFactors.srv)
-generate_messages(DEPENDENCIES std_msgs geometry_msgs pose_graph_tools_msgs)
+set(msg_files
+  "msg/AbsolutePoseStamped.msg" 
+  "msg/KimeraPgmoMesh.msg"
+  "msg/KimeraPgmoMeshDelta.msg"
+  "msg/TriangleIndices.msg")
 
-catkin_package(
-  CATKIN_DEPENDS
-  message_runtime
-  std_msgs
-  geometry_msgs
-  pose_graph_tools_msgs
-  DEPENDS
-  INCLUDE_DIRS
-  LIBRARIES)
+set(srv_files
+  "srv/LoadGraphMesh.srv" 
+  "srv/RequestMeshFactors.srv")
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${srv_files}
+  ${msg_files}
+  DEPENDENCIES geometry_msgs nav_interfaces std_msgs
+)
+
+ament_export_dependencies(rosidl_default_runtime geometry_msgs nav_interfaces std_msgs)
+
+ament_package()

@@ -73,7 +73,7 @@ Then launch kimera_pgmo:
 roslaunch kimera_pgmo kimera_pgmo.launch dataset:=uHumans2
 ```
 Launch Kimera-Semantics:
-```basg
+```bash
 roslaunch kimera_semantics_ros kimera_semantics_uHumans2.launch
 ```
 For visualization, an rviz configuration is provided: 

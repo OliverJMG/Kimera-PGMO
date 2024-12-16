@@ -4,7 +4,7 @@
  * @author Yun Chang
  */
 #include <config_utilities/config.h>
-#include <config_utilities/parsing/ros.h>
+#include <config_utilities/parsing/ros2.h>
 #include <kimera_pgmo/kimera_pgmo_interface.h>
 #include <kimera_pgmo/utils/logging.h>
 #include <kimera_pgmo/utils/mesh_io.h>
@@ -39,9 +39,10 @@ void declare_config(InputConfig& config) {
   field(config.max_diff_ns, "max_diff_ns");
 }
 
-class MeshTrajectoryDeformer : public KimeraPgmoInterface {
+class MeshTrajectoryDeformer : public rclcpp::Node, KimeraPgmoInterface {
  public:
-  explicit MeshTrajectoryDeformer(const InputConfig& config) : inputs(config) {}
+  explicit MeshTrajectoryDeformer() : Node("mesh_trajectory_deformer"), 
+          inputs(config::fromRos<kimera_pgmo::InputConfig>(*this)) {}
 
   ~MeshTrajectoryDeformer() {}
 
@@ -216,17 +217,15 @@ class MeshTrajectoryDeformer : public KimeraPgmoInterface {
 }  // namespace kimera_pgmo
 
 auto main(int argc, char* argv[]) -> int {
-  ros::NodeHandle n("~");
   logging::Logger::addSink("ros", std::make_shared<kimera_pgmo::RosLogSink>());
 
-  const auto inputs = config::fromRos<kimera_pgmo::InputConfig>(n);
-  kimera_pgmo::MeshTrajectoryDeformer deformer(inputs);
+  auto deformer = std::make_shared<kimera_pgmo::MeshTrajectoryDeformer>();
 
-  const auto config = config::fromRos<kimera_pgmo::KimeraPgmoConfig>(n);
-  if (!deformer.initialize(config)) {
+  const auto config = config::fromRos<kimera_pgmo::KimeraPgmoConfig>(*deformer);
+  if (!deformer->initialize(config)) {
     return EXIT_FAILURE;
   }
 
-  deformer.save();
+  deformer->save();
   return EXIT_SUCCESS;
 }

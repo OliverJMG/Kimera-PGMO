@@ -57,7 +57,7 @@ struct CompressionOutput {
 
 bool checkTriangles(const std::vector<std::vector<uint32_t>> &expected,
                     const std::vector<pcl::Vertices> &result) {
-  std::vector<std::vector<uint32_t>> result_filtered;
+  std::vector<pcl::Indices> result_filtered;
   for (size_t i = 0; i < result.size(); ++i) {
     if (result[i].vertices.size() != 3) {
       continue;
@@ -77,7 +77,7 @@ bool checkTriangles(const std::vector<std::vector<uint32_t>> &expected,
       continue;
     }
 
-    std::vector<uint32_t> new_triangle = result[i].vertices;
+    pcl::Indices new_triangle = result[i].vertices;
     result_filtered.push_back(new_triangle);
   }
 

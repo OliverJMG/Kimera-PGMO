@@ -7,23 +7,22 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_compile_options(-Wall -Wextra)
 
-find_package(catkin REQUIRED COMPONENTS kimera_pgmo_msgs roscpp rviz)
+find_package(ament_cmake_ros REQUIRED)
+find_package(pluginlib REQUIRED)
+find_package(kimera_pgmo_msgs REQUIRED)
+find_package(rviz_common REQUIRED)
+find_package(rviz_rendering REQUIRED)
+find_package(rviz_ogre_vendor REQUIRED)
 
 # from
 # https://github.com/ros-visualization/visualization_tutorials/blob/noetic-devel/rviz_plugin_tutorials/CMakeLists.txt
 set(CMAKE_AUTOMOC ON)
-find_package(Qt5 ${rviz_QT_VERSION} EXACT REQUIRED Core Widgets)
-set(QT_LIBRARIES Qt5::Widgets)
-
-catkin_package(
-  CATKIN_DEPENDS
-  kimera_pgmo_msgs
-  roscpp
-  rviz
-  DEPENDS
-  INCLUDE_DIRS
-  include
-  LIBRARIES)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets)
+QT5_WRAP_CPP(MOC_FILES
+  include/kimera_pgmo_rviz/mesh_display.h
+  include/kimera_pgmo_rviz/visibility_field.h
+)
+# set(QT_LIBRARIES Qt5::Widgets)
 
 add_library(
   ${PROJECT_NAME}
@@ -32,21 +31,34 @@ add_library(
   src/tf_event_buffer.cpp
   src/visibility_field.cpp
   src/visuals_map.cpp
-  include/kimera_pgmo_rviz/mesh_display.h
-  include/kimera_pgmo_rviz/visibility_field.h)
-target_include_directories(${PROJECT_NAME} PUBLIC include
-                                                  ${catkin_INCLUDE_DIRS})
-target_compile_options(${PROJECT_NAME} PRIVATE -Wno-register
-                                               -Wno-deprecated-copy)
-target_link_options(${PROJECT_NAME} PRIVATE -Wl,--no-undefined)
-target_link_libraries(${PROJECT_NAME} PUBLIC ${catkin_LIBRARIES}
-                                             ${QT_LIBRARIES})
+  ${MOC_FILES})
+target_include_directories(${PROJECT_NAME} PUBLIC 
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${Qt5Widgets_INCLUDE_DIRS})
+
+# target_compile_options(${PROJECT_NAME} PRIVATE -Wno-register
+#                                                -Wno-deprecated-copy)
+# target_link_options(${PROJECT_NAME} PRIVATE -Wl,--no-undefined)
+ament_target_dependencies(${PROJECT_NAME} 
+  pluginlib
+  rviz_common
+  rviz_ogre_vendor
+  rviz_rendering
+  kimera_pgmo_msgs)
 
 install(
   TARGETS ${PROJECT_NAME}
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
-install(DIRECTORY include/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
-install(FILES plugins.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
-install(DIRECTORY icons/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/icons)
+  EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
+install(DIRECTORY include/ DESTINATION include)
+install(FILES plugins.xml DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY icons/ DESTINATION share/${PROJECT_NAME}/icons)
+
+ament_export_include_directories(include)
+ament_export_targets(export_${PROJECT_NAME})
+pluginlib_export_plugin_description_file(rviz_common plugins.xml)
+
+ament_package()

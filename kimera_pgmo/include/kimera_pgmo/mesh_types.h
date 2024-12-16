@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <unordered_map>
+#include <optional>
 
 namespace kimera_pgmo {
 namespace traits {

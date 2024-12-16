@@ -9,8 +9,8 @@
 #include <config_utilities/config.h>
 #include <kimera_pgmo/utils/common_functions.h>
 #include <kimera_pgmo/utils/pcl_mesh_interface.h>
-#include <kimera_pgmo_msgs/KimeraPgmoMesh.h>
-#include <pose_graph_tools_msgs/PoseGraph.h>
+#include <kimera_pgmo_msgs/msg/kimera_pgmo_mesh.hpp>
+#include <nav_interfaces/msg/pose_graph.hpp>
 #include <pose_graph_tools_ros/conversions.h>
 
 #include <chrono>
@@ -20,8 +20,8 @@
 
 namespace kimera_pgmo {
 
-using kimera_pgmo_msgs::KimeraPgmoMesh;
-using pose_graph_tools_msgs::PoseGraph;
+using kimera_pgmo_msgs::msg::KimeraPgmoMesh;
+using nav_interfaces::msg::PoseGraph;
 
 void declare_config(VoxbloxMeshFrontend::Config& config) {
   using namespace config;
@@ -37,12 +37,12 @@ VoxbloxMeshFrontend::VoxbloxMeshFrontend(const Config& config,
   full_pub_ = nh_.advertise<KimeraPgmoMesh>("full_mesh", 1, false);
   simplified_pub_ = nh_.advertise<KimeraPgmoMesh>("deformation_graph_mesh", 10, false);
   mesh_graph_pub_ = nh_.advertise<PoseGraph>("mesh_graph_incremental", 100, true);
-  sub_ = nh_.subscribe<voxblox_msgs::Mesh>(
+  sub_ = nh_.subscribe<voxblox_msgs::msg::Mesh>(
       "mesh_in", config.queue_size, &VoxbloxMeshFrontend::handleMesh, this);
   ROS_INFO("Initialized mesh_frontend.");
 }
 
-void VoxbloxMeshFrontend::handleMesh(const voxblox_msgs::Mesh::ConstPtr& msg) {
+void VoxbloxMeshFrontend::handleMesh(const voxblox_msgs::msg::Mesh::ConstPtr& msg) {
   if (!msg) {
     return;
   }

@@ -146,10 +146,10 @@ pcl::PolygonMesh createSimpleMesh(double scale) {
   pcl::toPCLPointCloud2(ptcld, mesh.cloud);
 
   pcl::Vertices tri_1, tri_2, tri_3, tri_4;
-  tri_1.vertices = std::vector<uint>{0, 1, 2};
-  tri_2.vertices = std::vector<uint>{1, 3, 2};
-  tri_3.vertices = std::vector<uint>{0, 1, 4};
-  tri_4.vertices = std::vector<uint>{0, 4, 2};
+  tri_1.vertices = pcl::Indices{0, 1, 2}; //std::vector<uint>{0, 1, 2};
+  tri_2.vertices = pcl::Indices{1, 3, 2}; //std::vector<uint>{1, 3, 2};
+  tri_3.vertices = pcl::Indices{0, 1, 4}; //std::vector<uint>{0, 1, 4};
+  tri_4.vertices = pcl::Indices{0, 4, 2}; //std::vector<uint>{0, 4, 2};
   mesh.polygons = std::vector<pcl::Vertices>{tri_1, tri_2, tri_3, tri_4};
 
   return mesh;

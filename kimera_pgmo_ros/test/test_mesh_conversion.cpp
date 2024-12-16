@@ -8,7 +8,7 @@
 #include <kimera_pgmo/utils/mesh_io.h>
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/conversions.h>
-#include <ros/package.h>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include <filesystem>
 
@@ -17,7 +17,7 @@
 namespace kimera_pgmo {
 
 std::filesystem::path getPgmoPath() {
-  const auto path = ros::package::getPath("kimera_pgmo");
+  const auto path = ament_index_cpp::get_package_share_directory("kimera_pgmo"); //ros::package::getPath("kimera_pgmo");
   return path;
 }
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 
 #include "kimera_pgmo/utils/logging.h"
 
@@ -15,20 +15,20 @@ struct RosLogSink : logging::LogSink {
     ss << entry.prefix() << entry.message();
     switch (entry.level) {
       case logging::Level::WARNING:
-        ROS_WARN_STREAM(ss.str());
+        RCLCPP_WARN_STREAM(rclcpp::get_logger("kimera_pgmo"), ss.str());
         break;
       case logging::Level::ERROR:
-        ROS_ERROR_STREAM(ss.str());
+        RCLCPP_ERROR_STREAM(rclcpp::get_logger("kimera_pgmo"), ss.str());
         break;
       case logging::Level::FATAL:
-        ROS_FATAL_STREAM(ss.str());
+        RCLCPP_FATAL_STREAM(rclcpp::get_logger("kimera_pgmo"), ss.str());
         break;
       case logging::Level::INFO:
-        ROS_INFO_STREAM(ss.str());
+        RCLCPP_INFO_STREAM(rclcpp::get_logger("kimera_pgmo"), ss.str());
         break;
       default:
       case logging::Level::DEBUG:
-        ROS_DEBUG_STREAM(ss.str());
+        RCLCPP_DEBUG_STREAM(rclcpp::get_logger("kimera_pgmo"), ss.str());
         break;
     }
   }

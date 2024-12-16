@@ -16,7 +16,7 @@
 
 namespace kimera_pgmo::conversions {
 
-pcl::PointXYZRGBA ExtractPoint(const voxblox_msgs::MeshBlock& mesh_block,
+pcl::PointXYZRGBA ExtractPoint(const voxblox_msgs::msg::MeshBlock& mesh_block,
                                const float& block_edge_length,
                                const size_t& idx) {
   // (2*block_size), see mesh_vis.h for the slightly convoluted
@@ -46,7 +46,7 @@ pcl::PointXYZRGBA ExtractPoint(const voxblox_msgs::MeshBlock& mesh_block,
 }
 
 pcl::PolygonMesh UpdateMeshFromVoxbloxMeshBlock(
-    const voxblox_msgs::MeshBlock& mesh_block,
+    const voxblox_msgs::msg::MeshBlock& mesh_block,
     const float& block_edge_length,
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr vertices,
     std::shared_ptr<std::vector<pcl::Vertices>> triangles,
@@ -133,7 +133,7 @@ pcl::PolygonMesh UpdateMeshFromVoxbloxMeshBlock(
 }
 
 pcl::PolygonMesh VoxbloxMeshBlockToPolygonMesh(
-    const voxblox_msgs::MeshBlock& mesh_block,
+    const voxblox_msgs::msg::MeshBlock& mesh_block,
     float block_edge_length) {
   pcl::PolygonMesh new_mesh;
   pcl::PointCloud<pcl::PointXYZRGBA>::Ptr vertices_cloud(
@@ -198,11 +198,11 @@ void VoxbloxMeshBlockToPolygonMesh(
   return;
 }
 
-pcl::PolygonMesh VoxbloxToPolygonMesh(const voxblox_msgs::Mesh::ConstPtr& voxblox_msg) {
+pcl::PolygonMesh VoxbloxToPolygonMesh(const voxblox_msgs::msg::Mesh::ConstPtr& voxblox_msg) {
   pcl::PolygonMesh new_mesh;
 
   // Extract mesh block
-  for (const voxblox_msgs::MeshBlock& mesh_block : voxblox_msg->mesh_blocks) {
+  for (const voxblox_msgs::msg::MeshBlock& mesh_block : voxblox_msg->mesh_blocks) {
     pcl::PolygonMesh partial_mesh =
         VoxbloxMeshBlockToPolygonMesh(mesh_block, voxblox_msg->block_edge_length);
     new_mesh = CombineMeshes(new_mesh, partial_mesh);

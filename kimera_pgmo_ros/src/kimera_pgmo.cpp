@@ -6,14 +6,12 @@
 #include "kimera_pgmo_ros/kimera_pgmo.h"
 
 #include <config_utilities/config.h>
-#include <config_utilities/parsing/ros.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/TransformStamped.h>
+#include <config_utilities/parsing/ros2.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <kimera_pgmo/utils/logging.h>
 #include <kimera_pgmo/utils/mesh_io.h>
-#include <nav_msgs/Odometry.h>
 #include <pose_graph_tools_ros/conversions.h>
-#include <visualization_msgs/Marker.h>
 
 #include "kimera_pgmo_ros/conversion/gtsam_conversions.h"
 #include "kimera_pgmo_ros/conversion/mesh_conversion.h"
@@ -21,11 +19,14 @@
 
 namespace kimera_pgmo {
 
-using kimera_pgmo_msgs::KimeraPgmoMesh;
-using kimera_pgmo_msgs::LoadGraphMesh;
-using kimera_pgmo_msgs::RequestMeshFactors;
-using pose_graph_tools_msgs::PoseGraph;
-using visualization_msgs::Marker;
+using kimera_pgmo_msgs::msg::KimeraPgmoMesh;
+using kimera_pgmo_msgs::srv::LoadGraphMesh;
+using kimera_pgmo_msgs::srv::RequestMeshFactors;
+using nav_interfaces::msg::PoseGraph;
+using visualization_msgs::msg::Marker;
+
+using std::placeholders::_1;
+using std::placeholders::_2;
 
 void declare_config(KimeraPgmo::Config& config) {
   using namespace config;
@@ -39,9 +40,10 @@ void declare_config(KimeraPgmo::Config& config) {
 }
 
 // Constructor
-KimeraPgmo::KimeraPgmo()
-    : optimized_mesh_(new pcl::PolygonMesh),
+KimeraPgmo::KimeraPgmo() : Node("kimera_pgmo_node"),
+      optimized_mesh_(new pcl::PolygonMesh),
       optimized_path_(new Path),
+      tf_broadcast_(this),
       inc_mesh_cb_time_(0),
       full_mesh_cb_time_(0),
       pg_cb_time_(0),
@@ -60,28 +62,27 @@ KimeraPgmo::~KimeraPgmo() {
 }
 
 // Initialize parameters, publishers, and subscribers and deformation graph
-bool KimeraPgmo::initFromRos(const ros::NodeHandle& n) {
-  nh_ = n;
-  config_ = config::fromRos<KimeraPgmo::Config>(nh_);
+bool KimeraPgmo::initFromRos() {
+  config_ = config::fromRos<KimeraPgmo::Config>(*this);
   initialize(config_);
 
   if (config_.log_path != "") {
-    ROS_INFO_STREAM("Saving optimized data to: "
+    RCLCPP_INFO_STREAM(get_logger(), "Saving optimized data to: "
                     << config_.log_path << "/ mesh_pgmo.ply and traj_pgmo.csv");
     if (config_.log_output) {
-      ROS_INFO_STREAM("Logging output to: " << config_.log_path
+      RCLCPP_INFO_STREAM(get_logger(), "Logging output to: " << config_.log_path
                                             << "/kimera_pgmo_log.csv");
     }
   }
 
-  optimized_mesh_pub_ = nh_.advertise<KimeraPgmoMesh>("optimized_mesh", 1, false);
-  optimized_odom_pub_ = nh_.advertise<nav_msgs::Odometry>("optimized_odom", 1, false);
-  pose_graph_pub_ = nh_.advertise<PoseGraph>("pose_graph", 1, false);
-  optimized_path_pub_ = nh_.advertise<nav_msgs::Path>("optimized_path", 1, false);
+  optimized_mesh_pub_ = this->create_publisher<KimeraPgmoMesh>("optimized_mesh", 1);
+  optimized_odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("optimized_odom", 1);
+  pose_graph_pub_ = this->create_publisher<PoseGraph>("pose_graph", 1);
+  optimized_path_pub_ = this->create_publisher<nav_msgs::msg::Path>("optimized_path", 1);
   viz_mesh_mesh_edges_pub_ =
-      nh_.advertise<Marker>("deformation_graph_mesh_mesh", 10, false);
+      this->create_publisher<Marker>("deformation_graph_mesh_mesh", 10);
   viz_pose_mesh_edges_pub_ =
-      nh_.advertise<Marker>("deformation_graph_pose_mesh", 10, false);
+      this->create_publisher<Marker>("deformation_graph_pose_mesh", 10);
 
   // Log header to file
   if (config_.log_output) {
@@ -94,57 +95,58 @@ bool KimeraPgmo::initFromRos(const ros::NodeHandle& n) {
   // Start full mesh thread
   mesh_thread_.reset(new std::thread(&KimeraPgmo::startMeshProcess, this));
 
-  ROS_INFO("Initialized Kimera-PGMO.");
+  RCLCPP_INFO(get_logger(), "Initialized Kimera-PGMO.");
   return true;
 }
 
 // Initialize callbacks
 void KimeraPgmo::startGraphProcess() {
-  incremental_mesh_graph_sub_ = nh_.subscribe(
-      "mesh_graph_incremental", 5000, &KimeraPgmo::incrementalMeshGraphCallback, this);
+  incremental_mesh_graph_sub_ = this->create_subscription<nav_interfaces::msg::PoseGraph>(
+      "mesh_graph_incremental", 5000, std::bind(&KimeraPgmo::incrementalMeshGraphCallback, this, _1));
 
-  pose_graph_incremental_sub_ = nh_.subscribe(
-      "pose_graph_incremental", 5000, &KimeraPgmo::incrementalPoseGraphCallback, this);
+  pose_graph_incremental_sub_ = this->create_subscription<nav_interfaces::msg::PoseGraph>(
+      "pose_graph_incremental", 5000, std::bind(&KimeraPgmo::incrementalPoseGraphCallback, this, _1));
 
-  path_callback_sub_ =
-      nh_.subscribe("input_path", 2, &KimeraPgmo::optimizedPathCallback, this);
+  path_callback_sub_ = this->create_subscription<nav_msgs::msg::Path>(
+      "input_path", 2, std::bind(&KimeraPgmo::optimizedPathCallback, this, _1));
 
-  dpgmo_callback_sub_ =
-      nh_.subscribe("optimized_values", 1, &KimeraPgmo::dpgmoCallback, this);
+  dpgmo_callback_sub_ = this->create_subscription<nav_interfaces::msg::PoseGraph>(
+      "optimized_values", 1, std::bind(&KimeraPgmo::dpgmoCallback, this, _1));
 
   // Initialize save trajectory service
-  save_traj_srv_ = nh_.advertiseService(
-      "save_trajectory", &KimeraPgmo::saveTrajectoryCallback, this);
+  save_traj_srv_ = this->create_service<std_srvs::srv::Empty>(
+      "save_trajectory", std::bind(&KimeraPgmo::saveTrajectoryCallback, this, _1, _2));
 
   // Initialize save deformation graph service
-  save_graph_srv_ =
-      nh_.advertiseService("save_dgrf", &KimeraPgmo::saveGraphCallback, this);
+  save_graph_srv_ = this->create_service<std_srvs::srv::Empty>(
+      "save_dgrf", std::bind(&KimeraPgmo::saveGraphCallback, this, _1, _2));
 
   // Initialize save deformation graph service
-  load_graph_mesh_srv_ =
-      nh_.advertiseService("load_graph_mesh", &KimeraPgmo::loadGraphMeshCallback, this);
+  load_graph_mesh_srv_ = this->create_service<kimera_pgmo_msgs::srv::LoadGraphMesh>(
+      "load_graph_mesh", std::bind(&KimeraPgmo::loadGraphMeshCallback, this, _1, _2));
 
   // Reset the deformation graph service
-  reset_srv_ =
-      nh_.advertiseService("reset_graph", &KimeraPgmo::resetGraphCallback, this);
+  reset_srv_ = this->create_service<std_srvs::srv::Empty>(
+    "reset_graph", std::bind(&KimeraPgmo::resetGraphCallback, this, _1, _2));
 
   // Initialize request mesh edges service
-  req_mesh_edges_srv_ = nh_.advertiseService(
-      "get_mesh_edges", &KimeraPgmo::requestMeshEdgesCallback, this);
+  req_mesh_edges_srv_ = this->create_service<kimera_pgmo_msgs::srv::RequestMeshFactors>(
+      "get_mesh_edges", std::bind(&KimeraPgmo::requestMeshEdgesCallback, this, _1, _2));
 }
 
 // Initialize callbacks
 void KimeraPgmo::startMeshProcess() {
-  full_mesh_sub_ = nh_.subscribe("full_mesh", 1, &KimeraPgmo::fullMeshCallback, this);
+  full_mesh_sub_ = this->create_subscription<KimeraPgmoMesh>(
+      "full_mesh", 1, std::bind(&KimeraPgmo::fullMeshCallback, this, _1));
 
   // Initialize save mesh service
-  save_mesh_srv_ =
-      nh_.advertiseService("save_mesh", &KimeraPgmo::saveMeshCallback, this);
+  save_mesh_srv_ = this->create_service<std_srvs::srv::Empty>(
+      "save_mesh", std::bind(&KimeraPgmo::saveMeshCallback, this, _1, _2));
 }
 
 // To publish optimized mesh
 bool KimeraPgmo::publishOptimizedMesh() const {
-  std_msgs::Header msg_header;
+  std_msgs::msg::Header msg_header;
   msg_header.stamp = last_mesh_stamp_;
   msg_header.frame_id = config_.frame_id;
   publishMesh(*optimized_mesh_);
@@ -157,20 +159,20 @@ bool KimeraPgmo::publishOptimizedPath() const {
     return false;
   }
 
-  std_msgs::Header msg_header;
-  msg_header.stamp.fromNSec(timestamps_.back());
+  std_msgs::msg::Header msg_header;
+  msg_header.stamp = rclcpp::Time(timestamps_.back());
   msg_header.frame_id = config_.frame_id;
-  publishPath(*optimized_path_, msg_header, &optimized_path_pub_);
+  publishPath(*optimized_path_, msg_header, optimized_path_pub_);
 
-  if (optimized_odom_pub_.getNumSubscribers() > 0) {
+  if (optimized_odom_pub_->get_subscription_count() > 0) {
     // Publish also the optimized odometry
-    nav_msgs::Odometry odometry_msg;
+    nav_msgs::msg::Odometry odometry_msg;
     const gtsam::Pose3 last_pose = optimized_path_->at(optimized_path_->size() - 1);
     const gtsam::Rot3& rotation = last_pose.rotation();
     const gtsam::Quaternion& quaternion = rotation.toQuaternion();
 
     // Create header.
-    odometry_msg.header.stamp.fromNSec(timestamps_.back());
+    odometry_msg.header.stamp = rclcpp::Time(timestamps_.back());
     odometry_msg.header.frame_id = config_.frame_id;
 
     // Position
@@ -184,7 +186,7 @@ bool KimeraPgmo::publishOptimizedPath() const {
     odometry_msg.pose.pose.orientation.y = quaternion.y();
     odometry_msg.pose.pose.orientation.z = quaternion.z();
 
-    optimized_odom_pub_.publish(odometry_msg);
+    optimized_odom_pub_->publish(odometry_msg);
   }
 
   return true;
@@ -198,9 +200,9 @@ void KimeraPgmo::publishTransforms() {
   const gtsam::Quaternion& quat = latest_pose.rotation().toQuaternion();
   // Create transfomr message
 
-  geometry_msgs::TransformStamped transform;
+  geometry_msgs::msg::TransformStamped transform;
   std::string frame_name = "pgmo_base_link_";
-  transform.header.stamp.fromNSec(timestamps_.back());
+  transform.header.stamp = rclcpp::Time(timestamps_.back());
   transform.header.frame_id = "world";
   transform.child_frame_id = frame_name;
   transform.transform.translation.x = pos.x();
@@ -214,12 +216,12 @@ void KimeraPgmo::publishTransforms() {
   tf_broadcast_.sendTransform(transform);
 }
 
-void KimeraPgmo::incrementalPoseGraphCallback(const PoseGraph& msg) {
-  if (msg.nodes.size() == 0 && msg.edges.size() == 0) {
+void KimeraPgmo::incrementalPoseGraphCallback(const PoseGraph::ConstSharedPtr& msg) {
+  if (msg->nodes.size() == 0 && msg->edges.size() == 0) {
     return;
   }
 
-  const auto graph = pose_graph_tools::fromMsg(msg);
+  const auto graph = pose_graph_tools::fromMsg(*msg);
 
   // Start timer
   auto start = std::chrono::high_resolution_clock::now();
@@ -246,25 +248,25 @@ void KimeraPgmo::incrementalPoseGraphCallback(const PoseGraph& msg) {
     logStats(log_file);
   }
 
-  if (pose_graph_pub_.getNumSubscribers() > 0) {
+  if (pose_graph_pub_->get_subscription_count() > 0) {
     // Publish pose graph
     std::map<size_t, std::vector<Timestamp>> id_timestamps;
     id_timestamps[config_.robot_id] = timestamps_;
     const auto pose_graph_ptr = deformation_graph_->getPoseGraph(id_timestamps);
     const auto msg = pose_graph_tools::toMsg(*pose_graph_ptr);
-    pose_graph_pub_.publish(msg);
+    pose_graph_pub_->publish(msg);
   }
 
   // Publish optimized trajectory
   publishOptimizedPath();
 }
 
-void KimeraPgmo::optimizedPathCallback(const nav_msgs::Path& msg) {
+void KimeraPgmo::optimizedPathCallback(const nav_msgs::msg::Path::ConstSharedPtr& msg) {
   // Start timer
   auto start = std::chrono::high_resolution_clock::now();
 
   Path path;
-  for (const auto& stamped_pose : msg.poses) {
+  for (const auto& stamped_pose : msg->poses) {
     path.push_back(conversions::RosToGtsam(stamped_pose.pose));
   }
 
@@ -286,11 +288,11 @@ void KimeraPgmo::optimizedPathCallback(const nav_msgs::Path& msg) {
   }
 }
 
-void KimeraPgmo::fullMeshCallback(const kimera_pgmo_msgs::KimeraPgmoMesh& msg) {
+void KimeraPgmo::fullMeshCallback(const kimera_pgmo_msgs::msg::KimeraPgmoMesh::ConstSharedPtr& msg) {
   auto start = std::chrono::high_resolution_clock::now();
 
   std::vector<int> graph_indices;
-  auto mesh = conversions::fromMsg(msg, &mesh_vertex_stamps_, &graph_indices);
+  auto mesh = conversions::fromMsg(*msg, &mesh_vertex_stamps_, &graph_indices);
 
   bool opt_mesh;
   {  // start interface critical section
@@ -305,7 +307,7 @@ void KimeraPgmo::fullMeshCallback(const kimera_pgmo_msgs::KimeraPgmoMesh& msg) {
                                 true);
   }  // end interface critical section
 
-  if (opt_mesh && optimized_mesh_pub_.getNumSubscribers() > 0) {
+  if (opt_mesh && optimized_mesh_pub_->get_subscription_count() > 0) {
     publishMesh(*optimized_mesh_);
   }
 
@@ -320,10 +322,10 @@ void KimeraPgmo::fullMeshCallback(const kimera_pgmo_msgs::KimeraPgmoMesh& msg) {
   return;
 }
 
-void KimeraPgmo::incrementalMeshGraphCallback(const PoseGraph& msg) {
+void KimeraPgmo::incrementalMeshGraphCallback(const PoseGraph::ConstSharedPtr& msg) {
   // Start timer
   auto start = std::chrono::high_resolution_clock::now();
-  const auto graph = pose_graph_tools::fromMsg(msg);
+  const auto graph = pose_graph_tools::fromMsg(*msg);
 
   {  // start interface critical section
     std::unique_lock<std::mutex> lock(interface_mutex_);
@@ -339,9 +341,9 @@ void KimeraPgmo::incrementalMeshGraphCallback(const PoseGraph& msg) {
   return;
 }
 
-void KimeraPgmo::dpgmoCallback(const pose_graph_tools_msgs::PoseGraph& msg) {
+void KimeraPgmo::dpgmoCallback(const nav_interfaces::msg::PoseGraph::ConstSharedPtr& msg) {
   if (dpgmo_num_poses_last_req_.empty()) {
-    ROS_ERROR("Mesh factors request queue empty.");
+    RCLCPP_ERROR(get_logger(), "Mesh factors request queue empty.");
     return;
   }
 
@@ -349,9 +351,9 @@ void KimeraPgmo::dpgmoCallback(const pose_graph_tools_msgs::PoseGraph& msg) {
     std::unique_lock<std::mutex> lock(interface_mutex_);
     size_t num_poses = dpgmo_num_poses_last_req_.front();
     dpgmo_num_poses_last_req_.pop();
-    for (const auto& node : msg.nodes) {
+    for (const auto& node : msg->nodes) {
       if (node.robot_id != config_.robot_id) {
-        ROS_WARN("Unexpected robot id in pose graph received in dpgmo callback.");
+        RCLCPP_WARN(get_logger(), "Unexpected robot id in pose graph received in dpgmo callback.");
         continue;
       }
 
@@ -372,26 +374,24 @@ void KimeraPgmo::dpgmoCallback(const pose_graph_tools_msgs::PoseGraph& msg) {
   }  // end interface critical section
 }
 
-bool KimeraPgmo::saveMeshCallback(std_srvs::Empty::Request&,
-                                  std_srvs::Empty::Response&) {
+void KimeraPgmo::saveMeshCallback(const std_srvs::srv::Empty::Request::SharedPtr request, 
+          std_srvs::srv::Empty::Response::SharedPtr response) {
   // Save mesh
   std::string ply_name = config_.log_path + std::string("/mesh_pgmo.ply");
   WriteMeshWithStampsToPly(ply_name, *optimized_mesh_, mesh_vertex_stamps_);
-  ROS_INFO("KimeraPgmo: Saved mesh to file.");
-  return true;
+  RCLCPP_INFO(get_logger(), "KimeraPgmo: Saved mesh to file.");
 }
 
-bool KimeraPgmo::saveTrajectoryCallback(std_srvs::Empty::Request&,
-                                        std_srvs::Empty::Response&) {
+void KimeraPgmo::saveTrajectoryCallback(const std_srvs::srv::Empty::Request::SharedPtr request, 
+          std_srvs::srv::Empty::Response::SharedPtr response) {
   // Save trajectory
   std::string csv_name = config_.log_path + std::string("/traj_pgmo.csv");
   saveTrajectory(*optimized_path_, timestamps_, csv_name);
-  ROS_INFO("KimeraPgmo: Saved trajectories to file.");
-  return true;
+  RCLCPP_INFO(get_logger(), "KimeraPgmo: Saved trajectories to file.");
 }
 
-bool KimeraPgmo::saveGraphCallback(std_srvs::Empty::Request&,
-                                   std_srvs::Empty::Response&) {
+void KimeraPgmo::saveGraphCallback(const std_srvs::srv::Empty::Request::SharedPtr request, 
+          std_srvs::srv::Empty::Response::SharedPtr response) {
   // Save trajectory
   std::ofstream csvfile;
   std::string dgrf_name = config_.log_path + std::string("/pgmo.dgrf");
@@ -399,69 +399,66 @@ bool KimeraPgmo::saveGraphCallback(std_srvs::Empty::Request&,
   std::string sparse_mapping_name =
       config_.log_path + std::string("/sparsification_mapping.txt");
   savePoseGraphSparseMapping(sparse_mapping_name);
-  ROS_INFO("KimeraPgmo: Saved deformation graph to file.");
-  return true;
+  RCLCPP_INFO(get_logger(), "KimeraPgmo: Saved deformation graph to file.");
 }
 
-bool KimeraPgmo::loadGraphMeshCallback(LoadGraphMesh::Request& request,
-                                       LoadGraphMesh::Response& response) {
-  ROS_INFO("Loading deformation graph file: %s and ply file: %s. ",
-           request.dgrf_file.c_str(),
-           request.ply_file.c_str());
+void KimeraPgmo::loadGraphMeshCallback(const LoadGraphMesh::Request::SharedPtr request,
+                                       LoadGraphMesh::Response::SharedPtr response) {
+  RCLCPP_INFO(get_logger(), "Loading deformation graph file: %s and ply file: %s. ",
+           request->dgrf_file.c_str(),
+           request->ply_file.c_str());
 
   {  // start interface critical section
     std::unique_lock<std::mutex> lock(interface_mutex_);
-    response.success = loadGraphAndMesh(request.robot_id,
-                                        request.ply_file,
-                                        request.dgrf_file,
-                                        request.sparse_mapping_file,
+    response->success = loadGraphAndMesh(request->robot_id,
+                                        request->ply_file,
+                                        request->dgrf_file,
+                                        request->sparse_mapping_file,
                                         optimized_mesh_,
                                         &mesh_vertex_stamps_,
                                         true);
   }  // end interface critical section
 
-  if (response.success && optimized_mesh_pub_.getNumSubscribers() > 0) {
-    std_msgs::Header msg_header;
+  if (response->success && optimized_mesh_pub_->get_subscription_count() > 0) {
+    std_msgs::msg::Header msg_header;
     msg_header.frame_id = config_.frame_id;
-    msg_header.stamp = ros::Time::now();
+    msg_header.stamp = get_clock()->now();
     publishMesh(*optimized_mesh_);
   }
-
-  return response.success;
 }
 
-bool KimeraPgmo::requestMeshEdgesCallback(RequestMeshFactors::Request& request,
-                                          RequestMeshFactors::Response& response) {
+void KimeraPgmo::requestMeshEdgesCallback(const RequestMeshFactors::Request::SharedPtr request,
+                                          RequestMeshFactors::Response::SharedPtr response) {
   size_t offset_vertex_indices = 0;
-  if (request.reindex_vertices) {
+  if (request->reindex_vertices) {
     offset_vertex_indices = trajectory_.size();
   }
 
   pose_graph_tools::PoseGraph factors;
-  if (!getConsistencyFactors(request.robot_id, factors, offset_vertex_indices)) {
-    return false;
-  }
-
-  response.mesh_factors = pose_graph_tools::toMsg(factors);
-  dpgmo_num_poses_last_req_.push(trajectory_.size());
-  return true;
-}
-
-void KimeraPgmo::visualizeDeformationGraph() const {
-  if (viz_mesh_mesh_edges_pub_.getNumSubscribers() == 0 &&
-      viz_pose_mesh_edges_pub_.getNumSubscribers() == 0) {
+  if (!getConsistencyFactors(request->robot_id, factors, offset_vertex_indices)) {
     return;
   }
 
-  const ros::Time curr_time = ros::Time::now();
-  visualization_msgs::Marker mesh_mesh_viz;
-  visualization_msgs::Marker pose_mesh_viz;
+  response->mesh_factors = pose_graph_tools::toMsg(factors);
+  dpgmo_num_poses_last_req_.push(trajectory_.size());
+  return;
+}
+
+void KimeraPgmo::visualizeDeformationGraph() const {
+  if (viz_mesh_mesh_edges_pub_->get_subscription_count() == 0 &&
+      viz_pose_mesh_edges_pub_->get_subscription_count() == 0) {
+    return;
+  }
+
+  const rclcpp::Time curr_time = get_clock()->now();
+  visualization_msgs::msg::Marker mesh_mesh_viz;
+  visualization_msgs::msg::Marker pose_mesh_viz;
   fillDeformationGraphMarkers(
       *deformation_graph_, curr_time, mesh_mesh_viz, pose_mesh_viz);
 
   // Publish the msg with the edges
-  viz_mesh_mesh_edges_pub_.publish(mesh_mesh_viz);
-  viz_pose_mesh_edges_pub_.publish(pose_mesh_viz);
+  viz_mesh_mesh_edges_pub_->publish(mesh_mesh_viz);
+  viz_pose_mesh_edges_pub_->publish(pose_mesh_viz);
 }
 
 void KimeraPgmo::logStats(const std::string filename) const {
@@ -489,7 +486,7 @@ void KimeraPgmo::logStats(const std::string filename) const {
 }
 
 bool KimeraPgmo::publishMesh(const pcl::PolygonMesh& mesh) const {
-  if (optimized_mesh_pub_.getNumSubscribers() == 0) {
+  if (optimized_mesh_pub_->get_subscription_count() == 0) {
     return false;
   }
 
@@ -499,30 +496,30 @@ bool KimeraPgmo::publishMesh(const pcl::PolygonMesh& mesh) const {
 
   const auto msg =
       conversions::toMsg(config_.robot_id, mesh, mesh_vertex_stamps_, config_.frame_id);
-  optimized_mesh_pub_.publish(msg);
+  optimized_mesh_pub_->publish(*msg);
   return true;
 }
 
 bool KimeraPgmo::publishPath(const Path& path,
-                             const std_msgs::Header& header,
-                             const ros::Publisher* publisher) const {
+                             const std_msgs::msg::Header& header,
+                             const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr publisher) const {
   if (path.size() == 0) {
     return false;
   }
 
-  if (publisher->getNumSubscribers() == 0) {
+  if (publisher->get_subscription_count() == 0) {
     return false;
   }
 
   // Create message type
-  nav_msgs::Path path_msg;
+  nav_msgs::msg::Path path_msg;
   path_msg.poses.reserve(path.size());
   for (size_t i = 0; i < path.size(); i++) {
     gtsam::Pose3 pose = path.at(i);
     gtsam::Point3 trans = pose.translation();
     gtsam::Quaternion quat = pose.rotation().toQuaternion();
 
-    geometry_msgs::PoseStamped ps_msg;
+    geometry_msgs::msg::PoseStamped ps_msg;
     ps_msg.header.frame_id = header.frame_id;
     ps_msg.pose.position.x = trans.x();
     ps_msg.pose.position.y = trans.y();

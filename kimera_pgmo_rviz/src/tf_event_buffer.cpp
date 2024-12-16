@@ -1,7 +1,8 @@
 #include "kimera_pgmo_rviz/tf_event_buffer.h"
 
-#include <ros/assert.h>
-#include <rviz/frame_manager.h>
+// #include <ros/assert.h>
+// #include <rviz_common/frame_manager.hpp>
+#include <rviz_common/frame_manager_iface.hpp>
 
 #include <functional>
 #include <memory>
@@ -9,9 +10,9 @@
 
 namespace kimera_pgmo {
 
-TfEventBuffer::TfEventBuffer(rviz::FrameManager* frame_manager, const Config& config)
+TfEventBuffer::TfEventBuffer(rviz_common::FrameManagerIface* frame_manager, const Config& config)
     : config(config), frame_manager_(frame_manager) {
-  ROS_ASSERT_MSG(frame_manager_ != nullptr, "invalid frame manager!");
+  // ROS_ASSERT_MSG(frame_manager_ != nullptr, "invalid frame manager!");
   last_update_time_ = std::chrono::high_resolution_clock::now();
 }
 
@@ -68,7 +69,7 @@ std::optional<TfEventBuffer::Update> TfEventBuffer::getTransform(const std::stri
     return result;
   }
   if (!frame_manager_->getTransform(
-          query.target_frame, ros::Time(), result.position, result.orientation)) {
+          query.target_frame, rclcpp::Time(), result.position, result.orientation)) {
     return std::nullopt;
   }
   query.position = result.position;

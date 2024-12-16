@@ -1,4 +1,4 @@
 uint32 robot_id
 bool reindex_vertices
 ---
-pose_graph_tools_msgs/PoseGraph mesh_factors
+nav_interfaces/PoseGraph mesh_factors

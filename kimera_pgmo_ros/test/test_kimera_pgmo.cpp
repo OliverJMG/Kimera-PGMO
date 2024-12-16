@@ -13,7 +13,7 @@
 #include <gtsam/slam/PriorFactor.h>
 #include <kimera_pgmo/utils/common_structs.h>
 #include <kimera_pgmo/utils/logging.h>
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 
 #include "kimera_pgmo_ros/conversion/mesh_conversion.h"
 #include "kimera_pgmo_ros/kimera_pgmo.h"
@@ -21,7 +21,7 @@
 
 namespace kimera_pgmo {
 
-using kimera_pgmo_msgs::KimeraPgmoMesh;
+using kimera_pgmo_msgs::msg::KimeraPgmoMesh;
 
 namespace {
 template <typename T, typename Ptr>
@@ -44,48 +44,48 @@ const T* cast_factor(const Ptr& ptr, bool should_throw = false) {
 
 class KimeraPgmoTest : public ::testing::Test {
  protected:
-  KimeraPgmoTest() : nh("~") {
-    nh.setParam("frame_id", "world");
-    nh.setParam("robot_id", 0);
-    nh.setParam("run_mode", "FULL");
-    nh.setParam("output_prefix", "test");
-    nh.setParam("embed_trajectory_delta_t", 3.0);
-    nh.setParam("num_interp_pts", 4);
-    nh.setParam("interp_horizon", 10.0);
-    nh.setParam("rpgo/odom_trans_threshold", 10.0);
-    nh.setParam("rpgo/odom_rot_threshold", 10.0);
-    nh.setParam("rpgo/pcm_trans_threshold", 10.0);
-    nh.setParam("rpgo/pcm_rot_threshold", 10.0);
-    nh.setParam("rpgo/gnc_alpha", 0);
-    nh.setParam("add_initial_prior", true);
-    nh.setParam("enable_sparsify", false);
-    nh.setParam("covariance/odom", 0.000001);
-    nh.setParam("covariance/loop_close", 0.0001);
-    nh.setParam("covariance/prior", 0.00001);
-    nh.setParam("covariance/mesh_mesh", 0.001);
-    nh.setParam("covariance/pose_mesh", 0.0001);
+  KimeraPgmoTest() : node_(rclcpp::Node("kimera_pgmo_test")) {
+    node_.declare_parameter<std::string>("frame_id", "world");
+    node_.declare_parameter<int>("robot_id", 0);
+    node_.declare_parameter<std::string>("run_mode", "FULL");
+    node_.declare_parameter<std::string>("output_prefix", "test");
+    node_.declare_parameter<double>("embed_trajectory_delta_t", 3.0);
+    node_.declare_parameter<int>("num_interp_pts", 4);
+    node_.declare_parameter<double>("interp_horizon", 10.0);
+    node_.declare_parameter<double>("rpgo/odom_trans_threshold", 10.0);
+    node_.declare_parameter<double>("rpgo/odom_rot_threshold", 10.0);
+    node_.declare_parameter<double>("rpgo/pcm_trans_threshold", 10.0);
+    node_.declare_parameter<double>("rpgo/pcm_rot_threshold", 10.0);
+    node_.declare_parameter<int>("rpgo/gnc_alpha", 0);
+    node_.declare_parameter<bool>("add_initial_prior", true);
+    node_.declare_parameter<bool>("enable_sparsify", false);
+    node_.declare_parameter<double>("covariance/odom", 0.000001);
+    node_.declare_parameter<double>("covariance/loop_close", 0.0001);
+    node_.declare_parameter<double>("covariance/prior", 0.00001);
+    node_.declare_parameter<double>("covariance/mesh_mesh", 0.001);
+    node_.declare_parameter<double>("covariance/pose_mesh", 0.0001);
   }
 
   ~KimeraPgmoTest() {}
 
   bool init() {
-    const auto ret = pgmo_.initFromRos(nh);
+    const auto ret = pgmo_.initFromRos();
     return ret;
   }
 
-  void IncrementalPoseGraphCallback(const pose_graph_tools_msgs::PoseGraph& msg) {
-    pgmo_.incrementalPoseGraphCallback(msg);
+  void IncrementalPoseGraphCallback(const nav_interfaces::msg::PoseGraph& msg) {
+    pgmo_.incrementalPoseGraphCallback(std::shared_ptr<nav_interfaces::msg::PoseGraph>(msg));
   }
 
   void FullMeshCallback(const KimeraPgmoMesh& mesh_msg) {
     pgmo_.fullMeshCallback(mesh_msg);
   }
 
-  void IncrementalMeshGraphCallback(const pose_graph_tools_msgs::PoseGraph& msg) {
+  void IncrementalMeshGraphCallback(const nav_interfaces::msg::PoseGraph& msg) {
     pgmo_.incrementalMeshGraphCallback(msg);
   }
 
-  void OptimizedPathCallback(const nav_msgs::Path& path_msg) {
+  void OptimizedPathCallback(const nav_msgs::msg::Path& path_msg) {
     pgmo_.optimizedPathCallback(path_msg);
   }
 
@@ -105,7 +105,7 @@ class KimeraPgmoTest : public ::testing::Test {
 
   pcl::PolygonMesh getOptimizedMesh() const { return *(pgmo_.optimized_mesh_); }
 
-  ros::NodeHandle nh;
+  rclcpp::Node node_;
   KimeraPgmo pgmo_;
 };
 
@@ -113,7 +113,7 @@ TEST_F(KimeraPgmoTest, incrementalPoseGraphCallback) {
   ASSERT_TRUE(init());
 
   // check callback
-  auto inc_graph = SingleOdomGraph(ros::Time(10.2), 0);
+  auto inc_graph = SingleOdomGraph(rclcpp::Time(10.2), 0);
   IncrementalPoseGraphCallback(inc_graph);
   ForceOptimize();
 
@@ -151,7 +151,7 @@ TEST_F(KimeraPgmoTest, incrementalPoseGraphCallback) {
                                   factor0.measured()));
 
   // load second incremental pose graph
-  inc_graph = OdomLoopclosureGraph(ros::Time(20.3), 0);
+  inc_graph = OdomLoopclosureGraph(rclcpp::Time(20.3), 0);
   IncrementalPoseGraphCallback(inc_graph);
   ForceOptimize();
 
@@ -201,7 +201,7 @@ TEST_F(KimeraPgmoTest, incrementalMeshCallback) {
   Graph graph_struct;
 
   // Check callback
-  auto inc_graph = SingleOdomGraph(ros::Time(10.2), 0);
+  auto inc_graph = SingleOdomGraph(rclcpp::Time(10.2), 0);
   IncrementalPoseGraphCallback(inc_graph);
   // At this point should have two nodes (0, 0, 0), (1, 0, 0) and a between
   // factor
@@ -210,7 +210,7 @@ TEST_F(KimeraPgmoTest, incrementalMeshCallback) {
   pcl::PolygonMesh mesh1 = createMesh(0, 0, 0);
 
   auto mesh_graph_msg =
-      processMeshToGraph(mesh1, 0, ros::Time(12.5), compression, &graph_struct);
+      processMeshToGraph(mesh1, 0, rclcpp::Time(12.5), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
   ForceOptimize();
 
@@ -222,13 +222,13 @@ TEST_F(KimeraPgmoTest, incrementalMeshCallback) {
   EXPECT_EQ(7u, values.size());
 
   // load second incremental pose graph
-  inc_graph = OdomLoopclosureGraph(ros::Time(12.8), 0);
+  inc_graph = OdomLoopclosureGraph(rclcpp::Time(12.8), 0);
   IncrementalPoseGraphCallback(inc_graph);
 
   // Add mesh
   pcl::PolygonMesh mesh2 = createMesh(2, 0, 0);
   mesh_graph_msg =
-      processMeshToGraph(mesh2, 0, ros::Time(13.0), compression, &graph_struct);
+      processMeshToGraph(mesh2, 0, rclcpp::Time(13.0), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
   ForceOptimize();
 
@@ -275,19 +275,19 @@ TEST_F(KimeraPgmoTest, nodeToMeshConnection) {
   Graph graph_struct;
 
   // Check callback
-  auto inc_graph = SingleOdomGraph(ros::Time(10.2), 0);
+  auto inc_graph = SingleOdomGraph(rclcpp::Time(10.2), 0);
   IncrementalPoseGraphCallback(inc_graph);
   // At this point should have two nodes (0, 0, 0), (1, 0, 0) and a between
   // factor
 
   // load second incremental pose graph
-  inc_graph = OdomLoopclosureGraph(ros::Time(11.2), 0);
+  inc_graph = OdomLoopclosureGraph(rclcpp::Time(11.2), 0);
   IncrementalPoseGraphCallback(inc_graph);
 
   // Add mesh
   pcl::PolygonMesh mesh1 = createMesh(0, 0, 0);
   auto mesh_graph_msg =
-      processMeshToGraph(mesh1, 0, ros::Time(12.2), compression, &graph_struct);
+      processMeshToGraph(mesh1, 0, rclcpp::Time(12.2), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
   ForceOptimize();
 
@@ -308,23 +308,23 @@ TEST_F(KimeraPgmoTest, fullMeshCallback) {
   Graph graph_struct;
 
   // Check callback
-  auto inc_graph = SingleOdomGraph(ros::Time(10.2), 0);
+  auto inc_graph = SingleOdomGraph(rclcpp::Time(10.2), 0);
   IncrementalPoseGraphCallback(inc_graph);
 
   // Add mesh
   pcl::PolygonMesh mesh1 = createMesh(0, 0, 0);
   auto mesh_graph_msg =
-      processMeshToGraph(mesh1, 0, ros::Time(12.5), compression, &graph_struct);
+      processMeshToGraph(mesh1, 0, rclcpp::Time(12.5), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
 
   // load second incremental pose graph
-  inc_graph = OdomLoopclosureGraph(ros::Time(12.8), 0);
+  inc_graph = OdomLoopclosureGraph(rclcpp::Time(12.8), 0);
   IncrementalPoseGraphCallback(inc_graph);
 
   // Add mesh
   pcl::PolygonMesh mesh2 = createMesh(2, 0, 0);
   mesh_graph_msg =
-      processMeshToGraph(mesh2, 0, ros::Time(13.0), compression, &graph_struct);
+      processMeshToGraph(mesh2, 0, rclcpp::Time(13.0), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
 
   // Add mesh to be deformed
@@ -353,13 +353,13 @@ TEST_F(KimeraPgmoTest, fullMeshCallback) {
   EXPECT_EQ(3, optimized_vertices.points[4].z);
 
   // load third incremental pose graph
-  inc_graph = OdomLoopclosureGraph2(ros::Time(13.8), 0);
+  inc_graph = OdomLoopclosureGraph2(rclcpp::Time(13.8), 0);
   IncrementalPoseGraphCallback(inc_graph);
 
   // Add mesh
   pcl::PolygonMesh mesh3 = createMesh(2, 2, 0);
   mesh_graph_msg =
-      processMeshToGraph(mesh3, 0, ros::Time(14.0), compression, &graph_struct);
+      processMeshToGraph(mesh3, 0, rclcpp::Time(14.0), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
 
   FullMeshCallback(*full_mesh_msg);
@@ -377,7 +377,7 @@ TEST_F(KimeraPgmoTest, optimizedPathCallback) {
   ASSERT_TRUE(init());
 
   // check callback
-  auto inc_graph = SingleOdomGraph(ros::Time(10.2), 0);
+  auto inc_graph = SingleOdomGraph(rclcpp::Time(10.2), 0);
   IncrementalPoseGraphCallback(inc_graph);
   ForceOptimize();
 
@@ -501,7 +501,7 @@ TEST_F(KimeraPgmoTest, checkRobotIdMeshCallback) {
   Graph graph_struct;
 
   // Check callback
-  auto inc_graph = SingleOdomGraph(ros::Time(10.2), 2);
+  auto inc_graph = SingleOdomGraph(rclcpp::Time(10.2), 2);
   IncrementalPoseGraphCallback(inc_graph);
   // At this point should have two nodes (0, 0, 0), (1, 0, 0) and a between
   // factor
@@ -509,17 +509,17 @@ TEST_F(KimeraPgmoTest, checkRobotIdMeshCallback) {
   // Add mesh
   pcl::PolygonMesh mesh1 = createMesh(0, 0, 0);
   auto mesh_graph_msg =
-      processMeshToGraph(mesh1, 2, ros::Time(12.5), compression, &graph_struct);
+      processMeshToGraph(mesh1, 2, rclcpp::Time(12.5), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
 
   // load second incremental pose graph
-  inc_graph = OdomLoopclosureGraph(ros::Time(12.8), 2);
+  inc_graph = OdomLoopclosureGraph(rclcpp::Time(12.8), 2);
   IncrementalPoseGraphCallback(inc_graph);
 
   // Add mesh
   pcl::PolygonMesh mesh2 = createMesh(2, 0, 0);
   mesh_graph_msg =
-      processMeshToGraph(mesh2, 2, ros::Time(13.0), compression, &graph_struct);
+      processMeshToGraph(mesh2, 2, rclcpp::Time(13.0), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
   ForceOptimize();
 
@@ -567,7 +567,7 @@ TEST_F(KimeraPgmoTest, sparseKeyFrames) {
   Graph graph_struct;
 
   // Check callback
-  auto inc_graph = SingleOdomGraph(ros::Time(10.2), 0);
+  auto inc_graph = SingleOdomGraph(rclcpp::Time(10.2), 0);
   IncrementalPoseGraphCallback(inc_graph);
   // At this point should have one node (0, 0, 0)
 
@@ -575,7 +575,7 @@ TEST_F(KimeraPgmoTest, sparseKeyFrames) {
   pcl::PolygonMesh mesh1 = createMesh(0, 0, 0);
 
   auto mesh_graph_msg =
-      processMeshToGraph(mesh1, 0, ros::Time(12.5), compression, &graph_struct);
+      processMeshToGraph(mesh1, 0, rclcpp::Time(12.5), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
   ForceOptimize();
 
@@ -587,13 +587,13 @@ TEST_F(KimeraPgmoTest, sparseKeyFrames) {
   EXPECT_EQ(6u, values.size());
 
   // load second incremental pose graph
-  inc_graph = OdomLoopclosureGraph(ros::Time(12.8), 0);
+  inc_graph = OdomLoopclosureGraph(rclcpp::Time(12.8), 0);
   IncrementalPoseGraphCallback(inc_graph);
 
   // Add mesh
   pcl::PolygonMesh mesh2 = createMesh(2, 0, 0);
   mesh_graph_msg =
-      processMeshToGraph(mesh2, 0, ros::Time(13.0), compression, &graph_struct);
+      processMeshToGraph(mesh2, 0, rclcpp::Time(13.0), compression, &graph_struct);
   IncrementalMeshGraphCallback(mesh_graph_msg);
   ForceOptimize();
 

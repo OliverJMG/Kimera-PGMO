@@ -5,8 +5,8 @@
  */
 #pragma once
 
-#include <ros/ros.h>
-#include <voxblox_msgs/Mesh.h>
+#include <rclcpp/rclcpp.hpp>
+#include <voxblox_msgs/msg/mesh.hpp>
 
 #include "kimera_pgmo/mesh_frontend_interface.h"
 
@@ -30,7 +30,7 @@ class VoxbloxMeshFrontend : public MeshFrontendInterface {
   virtual ~VoxbloxMeshFrontend() = default;
 
  protected:
-  void handleMesh(const voxblox_msgs::Mesh::ConstPtr& mesh);
+  void handleMesh(const voxblox_msgs::msg::Mesh::ConstPtr& mesh);
 
   void publishFullMesh() const;
 

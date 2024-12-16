@@ -1,6 +1,6 @@
 #include <config_utilities/parsing/ros.h>
-#include <kimera_pgmo_msgs/KimeraPgmoMesh.h>
-#include <ros/ros.h>
+#include <kimera_pgmo_msgs/msg/kimera_pgmo_mesh.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 #include "kimera_pgmo_ros/ros_log_sink.h"
 #include "kimera_pgmo_ros/voxblox_mesh_frontend.h"

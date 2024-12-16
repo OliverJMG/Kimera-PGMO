@@ -46,7 +46,7 @@ pcl::PolygonMesh createMeshTriangle() {
   pcl::toPCLPointCloud2(ptcld, mesh.cloud);
 
   pcl::Vertices tri_1;
-  tri_1.vertices = std::vector<uint>{0, 1, 2};
+  tri_1.vertices = pcl::Indices{0, 1, 2}; //std::vector<uint>{0, 1, 2};
   mesh.polygons = std::vector<pcl::Vertices>{tri_1};
 
   return mesh;

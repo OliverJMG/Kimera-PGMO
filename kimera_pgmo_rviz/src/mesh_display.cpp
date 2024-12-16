@@ -5,8 +5,8 @@
  */
 #include "kimera_pgmo_rviz/mesh_display.h"
 
-#include <pluginlib/class_list_macros.h>
-#include <rviz/properties/bool_property.h>
+#include <pluginlib/class_list_macros.hpp>
+#include <rviz_common/properties/bool_property.hpp>
 
 #include "kimera_pgmo_rviz/mesh_visual.h"
 #include "kimera_pgmo_rviz/tf_event_buffer.h"
@@ -14,16 +14,16 @@
 
 namespace kimera_pgmo {
 
-using kimera_pgmo_msgs::KimeraPgmoMesh;
+using kimera_pgmo_msgs::msg::KimeraPgmoMesh;
 
 MeshDisplay::MeshDisplay() {
   // Setup rviz properties.
-  cull_ = std::make_unique<rviz::BoolProperty>("Cull Backfaces",
+  cull_ = std::make_unique<rviz_common::properties::BoolProperty>("Cull Backfaces",
                                                true,
                                                "Toggle culling backfaces",
                                                this,
                                                SLOT(updateGlobalSettingsSlot()));
-  lighting_ = std::make_unique<rviz::BoolProperty>("Enable Lighting",
+  lighting_ = std::make_unique<rviz_common::properties::BoolProperty>("Enable Lighting",
                                                    false,
                                                    "Toggle enabling lighting",
                                                    this,
@@ -31,7 +31,7 @@ MeshDisplay::MeshDisplay() {
 
   visibility_fields_ = std::make_unique<VisibilityField>("Visible", this, this);
   toggle_visibility_all_property_ =
-      std::make_unique<rviz::BoolProperty>("Toggle Visibility All",
+      std::make_unique<rviz_common::properties::BoolProperty>("Toggle Visibility All",
                                            true,
                                            "Toggle visibility for all meshes",
                                            this,
@@ -92,7 +92,7 @@ void MeshDisplay::toggleVisibilityAllSloT() {
   updateVisible();
 }
 
-void MeshDisplay::processMessage(const KimeraPgmoMesh::ConstPtr& msg) {
+void MeshDisplay::processMessage(const KimeraPgmoMesh::ConstSharedPtr msg) {
   if (!msg) {
     return;
   }
@@ -136,4 +136,4 @@ void MeshDisplay::deleteVisual(const std::string& ns) {
 
 }  // namespace kimera_pgmo
 
-PLUGINLIB_EXPORT_CLASS(kimera_pgmo::MeshDisplay, rviz::Display)
+PLUGINLIB_EXPORT_CLASS(kimera_pgmo::MeshDisplay, rviz_common::Display)

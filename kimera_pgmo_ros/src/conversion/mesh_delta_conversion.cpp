@@ -6,12 +6,13 @@
  */
 
 #include "kimera_pgmo_ros/conversion/mesh_delta_conversion.h"
+#include <rclcpp/rclcpp.hpp>
 
 #include <numeric>
 
 namespace kimera_pgmo::conversions {
 
-using kimera_pgmo_msgs::KimeraPgmoMeshDelta;
+using kimera_pgmo_msgs::msg::KimeraPgmoMeshDelta;
 
 MeshDelta::Ptr fromMsg(const KimeraPgmoMeshDelta& msg) {
   auto delta = std::make_shared<MeshDelta>(msg.vertex_start, msg.face_start);
@@ -60,9 +61,9 @@ MeshDelta::Ptr fromMsg(const KimeraPgmoMeshDelta& msg) {
   return delta;
 }
 
-KimeraPgmoMeshDelta::ConstPtr toRosMsg(const MeshDelta& delta, uint64_t timestamp_ns) {
-  KimeraPgmoMeshDelta::Ptr msg(new KimeraPgmoMeshDelta());
-  msg->header.stamp.fromNSec(timestamp_ns);
+KimeraPgmoMeshDelta::ConstSharedPtr toRosMsg(const MeshDelta& delta, uint64_t timestamp_ns) {
+  KimeraPgmoMeshDelta::SharedPtr msg(new KimeraPgmoMeshDelta());
+  msg->header.stamp = rclcpp::Time(timestamp_ns);
   msg->vertex_start = delta.vertex_start;
   msg->face_start = delta.face_start;
 
@@ -71,13 +72,13 @@ KimeraPgmoMeshDelta::ConstPtr toRosMsg(const MeshDelta& delta, uint64_t timestam
   msg->vertex_updates.resize(vertices.size());
   msg->vertex_updates_colors.resize(vertices.size());
   for (size_t i = 0; i < vertices.size(); i++) {
-    geometry_msgs::Point vertex_p;
+    geometry_msgs::msg::Point vertex_p;
     vertex_p.x = vertices[i].x;
     vertex_p.y = vertices[i].y;
     vertex_p.z = vertices[i].z;
     msg->vertex_updates[i] = vertex_p;
     // Point color
-    std_msgs::ColorRGBA vertex_c;
+    std_msgs::msg::ColorRGBA vertex_c;
     constexpr float color_conv_factor = 1.0f / std::numeric_limits<uint8_t>::max();
     vertex_c.r = color_conv_factor * static_cast<float>(vertices[i].r);
     vertex_c.g = color_conv_factor * static_cast<float>(vertices[i].g);
@@ -99,7 +100,7 @@ KimeraPgmoMeshDelta::ConstPtr toRosMsg(const MeshDelta& delta, uint64_t timestam
   msg->face_updates.resize(delta.face_updates.size());
   msg->face_archive_updates.resize(delta.face_archive_updates.size());
   for (size_t i = 0; i < delta.face_updates.size(); i++) {
-    kimera_pgmo_msgs::TriangleIndices face;
+    kimera_pgmo_msgs::msg::TriangleIndices face;
     face.vertex_indices[0] = delta.face_updates[i].v1;
     face.vertex_indices[1] = delta.face_updates[i].v2;
     face.vertex_indices[2] = delta.face_updates[i].v3;
@@ -107,7 +108,7 @@ KimeraPgmoMeshDelta::ConstPtr toRosMsg(const MeshDelta& delta, uint64_t timestam
   }
 
   for (size_t i = 0; i < delta.face_archive_updates.size(); i++) {
-    kimera_pgmo_msgs::TriangleIndices face;
+    kimera_pgmo_msgs::msg::TriangleIndices face;
     face.vertex_indices[0] = delta.face_archive_updates[i].v1;
     face.vertex_indices[1] = delta.face_archive_updates[i].v2;
     face.vertex_indices[2] = delta.face_archive_updates[i].v3;

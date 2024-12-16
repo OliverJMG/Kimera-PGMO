@@ -4,7 +4,9 @@
  * @author Nathan Hughes
  */
 #pragma once
-#include <kimera_pgmo_msgs/KimeraPgmoMesh.h>
+#include <kimera_pgmo_msgs/msg/kimera_pgmo_mesh.hpp>
+
+#include <Ogre.h>
 
 #include <atomic>
 #include <string>
@@ -14,7 +16,7 @@ namespace Ogre {
 class SceneManager;
 class SceneNode;
 class ManualObject;
-class Vector3;
+// class Vector3;
 class Quaternion;
 class Material;
 }  // namespace Ogre
@@ -31,7 +33,7 @@ class MeshVisual {
   void setPose(const Ogre::Vector3& parent_t_mesh,
                const Ogre::Quaternion& parent_R_mesh);
 
-  void setMessage(const kimera_pgmo_msgs::KimeraPgmoMesh& mesh);
+  void setMessage(const kimera_pgmo_msgs::msg::KimeraPgmoMesh& mesh);
 
   void shouldCull(bool cull);
   void shouldLight(bool light);

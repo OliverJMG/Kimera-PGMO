@@ -7,13 +7,15 @@
 
 #include <kimera_pgmo/kimera_pgmo_interface.h>
 #include <kimera_pgmo/utils/common_functions.h>
-#include <kimera_pgmo_msgs/AbsolutePoseStamped.h>
-#include <kimera_pgmo_msgs/KimeraPgmoMesh.h>
-#include <kimera_pgmo_msgs/LoadGraphMesh.h>
-#include <kimera_pgmo_msgs/RequestMeshFactors.h>
-#include <nav_msgs/Path.h>
-#include <ros/ros.h>
-#include <std_srvs/Empty.h>
+#include <kimera_pgmo_msgs/msg/absolute_pose_stamped.hpp>
+#include <kimera_pgmo_msgs/msg/kimera_pgmo_mesh.hpp>
+#include <kimera_pgmo_msgs/srv/load_graph_mesh.hpp>
+#include <kimera_pgmo_msgs/srv/request_mesh_factors.hpp>
+#include <nav_msgs/msg/path.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <visualization_msgs/msg/marker.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <std_srvs/srv/empty.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 
 #include <memory>
@@ -22,7 +24,7 @@
 
 namespace kimera_pgmo {
 
-class KimeraPgmo : public KimeraPgmoInterface {
+class KimeraPgmo : public KimeraPgmoInterface, public rclcpp::Node {
   friend class KimeraPgmoTest;
   friend class KimeraDpgmoTest;
 
@@ -46,9 +48,8 @@ class KimeraPgmo : public KimeraPgmoInterface {
   ~KimeraPgmo();
 
   /*! \brief Initializes callbacks and publishers, and also parse the parameters
-   *  - n: ROS node handle.
    */
-  bool initFromRos(const ros::NodeHandle& nh);
+  bool initFromRos();
 
   /*! \brief Get a pointer to the optimized mesh
    */
@@ -82,8 +83,8 @@ class KimeraPgmo : public KimeraPgmoInterface {
    * - publisher: associated publisher
    */
   bool publishPath(const Path& path,
-                   const std_msgs::Header& header,
-                   const ros::Publisher* publisher) const;
+                   const std_msgs::msg::Header& header,
+                   const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr publisher) const;
 
   /*! \brief Start the thread doing the mesh graph / pose graph / path * subscription */
   void startGraphProcess();
@@ -114,14 +115,14 @@ class KimeraPgmo : public KimeraPgmoInterface {
    * incremental mesh when that comes in
    *  - msg: new Pose Graph message consisting of the newest pose graph edges
    */
-  void incrementalPoseGraphCallback(const pose_graph_tools_msgs::PoseGraph& msg);
+  void incrementalPoseGraphCallback(const nav_interfaces::msg::PoseGraph::ConstSharedPtr& msg);
 
   /*! \brief Subscribes to the full mesh and deform it based on the deformation
    * graph. Then publish the deformed mesh, and also the optimized pose graph
    *  - mesh_msg: the full unoptimized mesh in mesh_msgs TriangleMeshStamped
    * format
    */
-  void fullMeshCallback(const kimera_pgmo_msgs::KimeraPgmoMesh& msg);
+  void fullMeshCallback(const kimera_pgmo_msgs::msg::KimeraPgmoMesh::ConstSharedPtr& msg);
 
   /*! \brief Subscribes to the mesh factors from MeshFrontend, which
    * corresponds to the latest simplified partial mesh from Voxblox or
@@ -129,7 +130,7 @@ class KimeraPgmo : public KimeraPgmoInterface {
    * nodes stored in the waiting queue to the vertices of the sampled mesh,
    *  - mesh_graph_msg: mesh factors to add to deformation graph and mesh nodes.
    */
-  void incrementalMeshGraphCallback(const pose_graph_tools_msgs::PoseGraph& msg);
+  void incrementalMeshGraphCallback(const nav_interfaces::msg::PoseGraph::ConstSharedPtr& msg);
 
   /*! \brief Subscribes to an optimized trajectory. The path should correspond
    * to the nodes of the pose graph received in the
@@ -137,38 +138,41 @@ class KimeraPgmo : public KimeraPgmoInterface {
    * single robot pose graph case.
    *  - mesh_msg: partial mesh in mesh_msgs TriangleMeshStamped format
    */
-  void optimizedPathCallback(const nav_msgs::Path& msg);
+  void optimizedPathCallback(const nav_msgs::msg::Path::ConstSharedPtr& msg);
 
   /*! \brief Subscribes to an optimized values published by dpgmo
    *  - msg: optimized pose graph published as a pose graph msg
    */
-  void dpgmoCallback(const pose_graph_tools_msgs::PoseGraph& msg);
+  void dpgmoCallback(const nav_interfaces::msg::PoseGraph::ConstSharedPtr& msg);
 
   /*! \brief Saves mesh as a ply file. Triggers through a rosservice call
    * and saves to file [output_prefix_]/mesh_pgmo.ply
    */
-  bool saveMeshCallback(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
+  void saveMeshCallback(const std_srvs::srv::Empty::Request::SharedPtr request, 
+          std_srvs::srv::Empty::Response::SharedPtr response);
 
   /*! \brief Saves all the trajectories of all robots to csv files. Triggers
    * through a rosservice call and saves to file [output_prefix_]/traj_pgmo.csv
    */
-  bool saveTrajectoryCallback(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
+  void saveTrajectoryCallback(const std_srvs::srv::Empty::Request::SharedPtr request, 
+          std_srvs::srv::Empty::Response::SharedPtr response);
 
   /*! \brief Saves the deformation graph to a custom dgrf file. Triggers
    * through a rosservice call and saves to file [output_prefix_]/pgmo.dgrf
    */
-  bool saveGraphCallback(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
+  void saveGraphCallback(const std_srvs::srv::Empty::Request::SharedPtr request, 
+          std_srvs::srv::Empty::Response::SharedPtr response);
 
   /*! \brief Loads a deformation graph and associated mesh.
    */
-  bool loadGraphMeshCallback(kimera_pgmo_msgs::LoadGraphMesh::Request& request,
-                             kimera_pgmo_msgs::LoadGraphMesh::Response& response);
+  void loadGraphMeshCallback(const kimera_pgmo_msgs::srv::LoadGraphMesh::Request::SharedPtr request,
+                             kimera_pgmo_msgs::srv::LoadGraphMesh::Response::SharedPtr response);
 
   /*! \brief Requests the mesh related edges (pose-vertex, vertex-vertex) in the
    * deformation graph.
    */
-  bool requestMeshEdgesCallback(kimera_pgmo_msgs::RequestMeshFactors::Request& req,
-                                kimera_pgmo_msgs::RequestMeshFactors::Response& res);
+  void requestMeshEdgesCallback(const kimera_pgmo_msgs::srv::RequestMeshFactors::Request::SharedPtr request,
+                                kimera_pgmo_msgs::srv::RequestMeshFactors::Response::SharedPtr response);
 
   /*! \brief log the run-time stats such as pose graph size, mesh size, and run
    * time
@@ -177,47 +181,46 @@ class KimeraPgmo : public KimeraPgmoInterface {
 
   /*! \brief Clear and reset the deformation graph.
    */
-  bool resetGraphCallback(std_srvs::Empty::Request&, std_srvs::Empty::Response&) {
+  void resetGraphCallback(const std_srvs::srv::Empty::Request::SharedPtr request, 
+          std_srvs::srv::Empty::Response::SharedPtr response) {
     resetDeformationGraph();
-    return true;
   }
 
  protected:
   Config config_;
-  ros::NodeHandle nh_;
 
   // optimized mesh for each robot
   pcl::PolygonMesh::Ptr optimized_mesh_;
   std::vector<Timestamp> mesh_vertex_stamps_;
 
   PathPtr optimized_path_;
-  ros::Time last_mesh_stamp_;
+  rclcpp::Time last_mesh_stamp_;
 
   // Publishers
-  ros::Publisher optimized_mesh_pub_;
-  ros::Publisher optimized_path_pub_;  // Unused for now (TODO)
-  ros::Publisher optimized_odom_pub_;  // Unused for now (TODO)
-  ros::Publisher pose_graph_pub_;
-  ros::Publisher viz_mesh_mesh_edges_pub_;
-  ros::Publisher viz_pose_mesh_edges_pub_;
+  rclcpp::Publisher<kimera_pgmo_msgs::msg::KimeraPgmoMesh>::SharedPtr optimized_mesh_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr optimized_path_pub_;  // Unused for now (TODO)
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr optimized_odom_pub_;  // Unused for now (TODO)
+  rclcpp::Publisher<nav_interfaces::msg::PoseGraph>::SharedPtr pose_graph_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr viz_mesh_mesh_edges_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr viz_pose_mesh_edges_pub_;
 
   // Transform broadcaster
   tf2_ros::TransformBroadcaster tf_broadcast_;
 
   // Subscribers
-  ros::Subscriber pose_graph_incremental_sub_;
-  ros::Subscriber full_mesh_sub_;
-  ros::Subscriber incremental_mesh_graph_sub_;
-  ros::Subscriber path_callback_sub_;
-  ros::Subscriber dpgmo_callback_sub_;
+  rclcpp::Subscription<nav_interfaces::msg::PoseGraph>::SharedPtr pose_graph_incremental_sub_;
+  rclcpp::Subscription<kimera_pgmo_msgs::msg::KimeraPgmoMesh>::SharedPtr full_mesh_sub_;
+  rclcpp::Subscription<nav_interfaces::msg::PoseGraph>::SharedPtr incremental_mesh_graph_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_callback_sub_;
+  rclcpp::Subscription<nav_interfaces::msg::PoseGraph>::SharedPtr dpgmo_callback_sub_;
 
   // Service
-  ros::ServiceServer save_mesh_srv_;
-  ros::ServiceServer save_traj_srv_;
-  ros::ServiceServer save_graph_srv_;
-  ros::ServiceServer load_graph_mesh_srv_;
-  ros::ServiceServer reset_srv_;
-  ros::ServiceServer req_mesh_edges_srv_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr save_mesh_srv_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr save_traj_srv_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr save_graph_srv_;
+  rclcpp::Service<kimera_pgmo_msgs::srv::LoadGraphMesh>::SharedPtr load_graph_mesh_srv_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr reset_srv_;
+  rclcpp::Service<kimera_pgmo_msgs::srv::RequestMeshFactors>::SharedPtr req_mesh_edges_srv_;
 
   // Trajectory
   Path trajectory_;

@@ -5,12 +5,11 @@
  */
 
 #include <config_utilities/config_utilities.h>
-#include <config_utilities/parsing/ros.h>
+#include <config_utilities/parsing/ros2.h>
 #include <config_utilities/types/path.h>
 #include <kimera_pgmo/utils/mesh_io.h>
-#include <ros/assert.h>
-#include <ros/ros.h>
-#include <std_srvs/Empty.h>
+#include <rclcpp/rclcpp.hpp>
+#include <std_srvs/srv/empty.hpp>
 
 #include <filesystem>
 
@@ -18,9 +17,11 @@
 
 namespace kimera_pgmo {
 
-using kimera_pgmo_msgs::KimeraPgmoMesh;
+using kimera_pgmo_msgs::msg::KimeraPgmoMesh;
+using std::placeholders::_1;
+using std::placeholders::_2;
 
-class MeshPublisherNode {
+class MeshPublisherNode : public rclcpp::Node {
  public:
   struct Config {
     size_t robot_id = 0;
@@ -28,16 +29,16 @@ class MeshPublisherNode {
     std::filesystem::path mesh_filepath;
   } const config;
 
-  explicit MeshPublisherNode(const ros::NodeHandle& nh);
+  explicit MeshPublisherNode();
   ~MeshPublisherNode() = default;
 
  private:
-  bool reload(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
+  bool reload(const std_srvs::srv::Empty::Request::SharedPtr request, 
+          std_srvs::srv::Empty::Response::SharedPtr response);
   void publishMesh();
 
-  ros::NodeHandle nh_;
-  ros::Publisher pub_;
-  ros::ServiceServer reload_service_;
+  rclcpp::Publisher<KimeraPgmoMesh>::SharedPtr pub_;
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr reload_service_;
 };
 
 void declare_config(MeshPublisherNode::Config& config) {
@@ -50,43 +51,45 @@ void declare_config(MeshPublisherNode::Config& config) {
   check<Path::Exists>(config.mesh_filepath, "mesh_filepath");
 }
 
-MeshPublisherNode::MeshPublisherNode(const ros::NodeHandle& nh)
-    : config(config::checkValid(config::fromRos<Config>(nh))), nh_(nh) {
-  ROS_INFO_STREAM("Starting publisher node with\n" << config::toString(config));
-  pub_ = nh_.advertise<KimeraPgmoMesh>("mesh", 1, true);
+MeshPublisherNode::MeshPublisherNode()
+    : Node("mesh_publisher_node"), config(config::checkValid(config::fromRos<Config>(*this))) {
+  RCLCPP_INFO_STREAM(get_logger(), "Starting publisher node with\n" << config::toString(config));
+  pub_ = this->create_publisher<KimeraPgmoMesh>("mesh", 1);
   publishMesh();
 
-  reload_service_ = nh_.advertiseService("reload", &MeshPublisherNode::reload, this);
+  reload_service_ = this->create_service<std_srvs::srv::Empty>("reload", 
+          std::bind(&MeshPublisherNode::reload, this, _1, _2));
 }
 
-bool MeshPublisherNode::reload(std_srvs::Empty::Request&, std_srvs::Empty::Response&) {
+bool MeshPublisherNode::reload(const std_srvs::srv::Empty::Request::SharedPtr request, 
+          std_srvs::srv::Empty::Response::SharedPtr response) {
   publishMesh();
   return true;
 }
 
 void MeshPublisherNode::publishMesh() {
-  ROS_INFO_STREAM("Loading mesh from: " << config.mesh_filepath);
+  RCLCPP_INFO_STREAM(get_logger(), "Loading mesh from: " << config.mesh_filepath);
   pcl::PolygonMesh mesh;
   std::vector<Timestamp> stamps;
   ReadMeshWithStampsFromPly(config.mesh_filepath, mesh, &stamps);
   const auto num_vertices = mesh.cloud.height * mesh.cloud.width;
-  ROS_INFO_STREAM("Loaded mesh with " << num_vertices << " vertices, "
+  RCLCPP_INFO_STREAM(get_logger(), "Loaded mesh with " << num_vertices << " vertices, "
                                       << mesh.polygons.size() << " faces, and "
                                       << stamps.size() << " timestamps");
 
   auto msg = conversions::toMsg(config.robot_id, mesh, stamps, config.mesh_frame);
-  ROS_ASSERT_MSG(msg != nullptr, "valid mesh required");
-  msg->header.stamp = ros::Time::now();
-  pub_.publish(msg);
+  // ROS_ASSERT_MSG(msg != nullptr, "valid mesh required");
+  msg->header.stamp = get_clock()->now();
+  pub_->publish(*msg);
 }
 
 }  // namespace kimera_pgmo
 
 int main(int argc, char* argv[]) {
-  ros::init(argc, argv, "mesh_publisher_node");
-  ros::NodeHandle nh("~");
+  rclcpp::init(argc, argv);
 
-  kimera_pgmo::MeshPublisherNode node(nh);
-  ros::spin();
+  auto node = std::make_shared<kimera_pgmo::MeshPublisherNode>();
+  rclcpp::spin(node);
+  rclcpp::shutdown();
   return EXIT_SUCCESS;
 }

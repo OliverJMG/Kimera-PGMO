@@ -4,10 +4,12 @@
 #include <memory>
 #include <unordered_map>
 
-namespace Ogre {
-class SceneManager;
-class SceneNode;
-}  // namespace Ogre
+#include <OgreSceneManager.h>
+#include <OgreSceneNode.h>
+// namespace Ogre {
+// class SceneManager;
+// class SceneNode;
+// }  // namespace Ogre
 
 namespace kimera_pgmo {
 

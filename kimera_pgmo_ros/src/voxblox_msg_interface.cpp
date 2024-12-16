@@ -8,7 +8,7 @@
 
 namespace kimera_pgmo {
 
-VoxbloxMsgInterface::VoxbloxMsgInterface(const voxblox_msgs::Mesh& mesh)
+VoxbloxMsgInterface::VoxbloxMsgInterface(const voxblox_msgs::msg::Mesh& mesh)
     : active_mesh_block_(nullptr), mesh_(mesh) {
   size_t count = 0;
   for (const auto& block : mesh_.mesh_blocks) {

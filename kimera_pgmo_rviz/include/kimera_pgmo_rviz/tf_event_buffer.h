@@ -1,15 +1,15 @@
 #pragma once
 
 #include <OgreQuaternion.h>
-#include <OgreVector3.h>
+#include <Ogre.h>
 
 #include <chrono>
 #include <memory>
 #include <optional>
 #include <unordered_map>
 
-namespace rviz {
-class FrameManager;
+namespace rviz_common {
+class FrameManagerIface;
 }
 
 namespace kimera_pgmo {
@@ -30,7 +30,7 @@ class TfEventBuffer {
         1e-3f;  // update tolerance for when a transform is considered new.
   } config;
 
-  TfEventBuffer(rviz::FrameManager* frame_manager, const Config& config);
+  TfEventBuffer(rviz_common::FrameManagerIface* frame_manager, const Config& config);
   virtual ~TfEventBuffer() = default;
 
   /**
@@ -74,7 +74,7 @@ class TfEventBuffer {
   void reset();
 
  private:
-  rviz::FrameManager* frame_manager_;
+  rviz_common::FrameManagerIface* frame_manager_;
 
   struct Query {
     std::string target_frame;

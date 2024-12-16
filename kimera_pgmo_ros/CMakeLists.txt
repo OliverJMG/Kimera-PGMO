@@ -9,31 +9,15 @@ add_compile_options(-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter)
 
 find_package(config_utilities REQUIRED)
 find_package(kimera_pgmo REQUIRED)
-find_package(
-  catkin REQUIRED
-  COMPONENTS kimera_pgmo_msgs
-             nav_msgs
-             pose_graph_tools_msgs
-             pose_graph_tools_ros
-             roscpp
-             tf2_ros
-             visualization_msgs)
+find_package(rclcpp REQUIRED)
+find_package(kimera_pgmo_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(nav_interfaces REQUIRED)
+find_package(pose_graph_tools_ros REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
-catkin_package(
-  CATKIN_DEPENDS
-  kimera_pgmo_msgs
-  nav_msgs
-  pose_graph_tools_msgs
-  pose_graph_tools_ros
-  roscpp
-  tf2_ros
-  visualization_msgs
-  DEPENDS
-  kimera_pgmo
-  INCLUDE_DIRS
-  include
-  LIBRARIES
-  ${PROJECT_NAME})
 
 add_library(${PROJECT_NAME}  
   src/conversion/gtsam_conversions.cpp
@@ -43,11 +27,23 @@ add_library(${PROJECT_NAME}
   src/mesh_frontend.cpp
   src/visualization_functions.cpp
 )
-target_include_directories(${PROJECT_NAME} PUBLIC include ${catkin_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC ${catkin_LIBRARIES} kimera_pgmo::kimera_pgmo 
+  PUBLIC kimera_pgmo::kimera_pgmo 
   PRIVATE config_utilities::config_utilities)
+ament_target_dependencies(
+    ${PROJECT_NAME} PUBLIC
+    kimera_pgmo_msgs
+    nav_msgs
+    std_srvs
+    nav_interfaces
+    pose_graph_tools_ros
+    rclcpp
+    tf2_ros
+    visualization_msgs)
 
 add_executable(kimera_pgmo_node app/kimera_pgmo_node.cpp)
 target_link_libraries(kimera_pgmo_node ${PROJECT_NAME}
@@ -80,17 +76,28 @@ if(voxblox_msgs_FOUND)
     PRIVATE config_utilities::config_utilities ${voxblox_msgs_LIBRARIES})
 endif()
 
-if(CATKIN_ENABLE_TESTING)
-  add_subdirectory(test)
-endif()
+# if(BUILD_TESTING)
+#   add_subdirectory(test)
+# endif()
 
 install(
-  TARGETS ${PROJECT_NAME} kimera_pgmo_node mesh_frontend_node
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
+  TARGETS ${PROJECT_NAME} 
+  EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
 
-install(DIRECTORY include/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 
-install(DIRECTORY launch/
-        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch)
+install(
+  TARGETS kimera_pgmo_node mesh_frontend_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY include/ 
+        DESTINATION include/${PROJECT_NAME})
+
+install(DIRECTORY launch
+        DESTINATION share/${PROJECT_NAME}/)
+
+ament_package()

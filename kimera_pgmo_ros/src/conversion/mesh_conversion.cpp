@@ -12,10 +12,10 @@
 
 namespace kimera_pgmo::conversions {
 
-using kimera_pgmo_msgs::KimeraPgmoMesh;
-using kimera_pgmo_msgs::TriangleIndices;
+using kimera_pgmo_msgs::msg::KimeraPgmoMesh;
+using kimera_pgmo_msgs::msg::TriangleIndices;
 
-KimeraPgmoMesh::Ptr toMsg(size_t robot_id,
+KimeraPgmoMesh::SharedPtr toMsg(size_t robot_id,
                           const pcl::PolygonMesh& mesh,
                           const std::vector<Timestamp>& stamps,
                           const std::string& frame_id,
@@ -25,16 +25,16 @@ KimeraPgmoMesh::Ptr toMsg(size_t robot_id,
   return toMsg(robot_id, cloud, mesh.polygons, stamps, frame_id, index_mapping);
 }
 
-KimeraPgmoMesh::Ptr toMsg(size_t robot_id,
+KimeraPgmoMesh::SharedPtr toMsg(size_t robot_id,
                           const pcl::PointCloud<pcl::PointXYZRGBA>& cloud,
                           const std::vector<pcl::Vertices>& faces,
                           const std::vector<Timestamp>& stamps,
                           const std::string& frame_id,
                           const IndexMapping* index_mapping) {
-  std_msgs::Header header;
+  std_msgs::msg::Header header;
   header.frame_id = frame_id;
   if (!stamps.empty()) {
-    header.stamp.fromNSec(stamps.back());
+    header.stamp = rclcpp::Time(stamps.back());
   }
 
   ConstStampedCloud vertices{cloud, stamps};

@@ -3,25 +3,26 @@
  * @brief  Main load for kimera pgmo
  * @author Yun Chang
  */
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 
 #include "kimera_pgmo_ros/kimera_pgmo.h"
 #include "kimera_pgmo_ros/ros_log_sink.h"
 
 int main(int argc, char* argv[]) {
   // Initialize ROS node.
-  ros::init(argc, argv, "kimera_pgmo");
-  ros::NodeHandle n("~");
+  rclcpp::init(argc, argv);
 
   logging::Logger::addSink("ros", std::make_shared<kimera_pgmo::RosLogSink>());
 
-  kimera_pgmo::KimeraPgmo kimera_pgmo;
-  if (!kimera_pgmo.initFromRos(n)) {
-    ROS_ERROR("Failed to initialize Kimera Pgmo.");
+  auto kimera_pgmo = std::make_shared<kimera_pgmo::KimeraPgmo>();
+  if (!kimera_pgmo->initFromRos()) {
+    RCLCPP_ERROR(rclcpp::get_logger("kimera_pgmo_node"), "Failed to initialize Kimera Pgmo.");
+    rclcpp::shutdown();
     return EXIT_FAILURE;
   }
 
-  ros::spin();
+  rclcpp::spin(kimera_pgmo);
+  rclcpp::shutdown();
 
   return EXIT_SUCCESS;
 }

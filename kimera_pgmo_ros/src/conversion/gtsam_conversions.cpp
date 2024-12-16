@@ -9,13 +9,13 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <kimera_pgmo/mesh_traits.h>
 #include <kimera_pgmo/utils/common_functions.h>
-#include <pose_graph_tools_msgs/PoseGraphEdge.h>
-#include <pose_graph_tools_msgs/PoseGraphNode.h>
-#include <ros/console.h>
+#include <nav_interfaces/msg/pose_graph_edge.hpp>
+#include <nav_interfaces/msg/pose_graph_node.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 namespace kimera_pgmo::conversions {
 
-gtsam::Pose3 RosToGtsam(const geometry_msgs::Pose& transform) {
+gtsam::Pose3 RosToGtsam(const geometry_msgs::msg::Pose& transform) {
   gtsam::Pose3 pose;
   pose = gtsam::Pose3(
       gtsam::Rot3(transform.orientation.w,
@@ -26,11 +26,11 @@ gtsam::Pose3 RosToGtsam(const geometry_msgs::Pose& transform) {
   return pose;
 }
 
-geometry_msgs::Pose GtsamToRos(const gtsam::Pose3& pose) {
+geometry_msgs::msg::Pose GtsamToRos(const gtsam::Pose3& pose) {
   const gtsam::Point3& translation = pose.translation();
   const gtsam::Quaternion& quaternion = pose.rotation().toQuaternion();
 
-  geometry_msgs::Pose ros_pose;
+  geometry_msgs::msg::Pose ros_pose;
 
   // pose - translation
   ros_pose.position.x = translation.x();
@@ -49,9 +49,10 @@ geometry_msgs::Pose GtsamToRos(const gtsam::Pose3& pose) {
 GraphMsgPtr GtsamGraphToRos(const gtsam::NonlinearFactorGraph& factors,
                             const gtsam::Values& values,
                             const std::map<size_t, std::vector<Timestamp>>& timestamps,
+                            const Timestamp msg_stamp,
                             const gtsam::Vector& gnc_weights,
                             const std::string& frame_id) {
-  std::vector<pose_graph_tools_msgs::PoseGraphEdge> edges;
+  std::vector<nav_interfaces::msg::PoseGraphEdge> edges;
 
   // first store the factors as edges
   for (size_t i = 0; i < factors.size(); i++) {
@@ -62,7 +63,7 @@ GraphMsgPtr GtsamGraphToRos(const gtsam::NonlinearFactorGraph& factors,
       // convert to between factor
       const auto& factor = *factor_ptr;
       // convert between factor to PoseGraphEdge type
-      pose_graph_tools_msgs::PoseGraphEdge edge;
+      nav_interfaces::msg::PoseGraphEdge edge;
       edge.header.frame_id = frame_id;
       gtsam::Symbol front(factor.front());
       gtsam::Symbol back(factor.back());
@@ -73,18 +74,18 @@ GraphMsgPtr GtsamGraphToRos(const gtsam::NonlinearFactorGraph& factors,
 
       if (edge.key_to == edge.key_from + 1 &&
           edge.robot_from == edge.robot_to) {  // check if odom
-        edge.type = pose_graph_tools_msgs::PoseGraphEdge::ODOM;
+        edge.type = nav_interfaces::msg::PoseGraphEdge::ODOM;
         try {
-          edge.header.stamp.fromNSec(timestamps.at(edge.robot_to).at(edge.key_to));
+          edge.header.stamp = rclcpp::Time(timestamps.at(edge.robot_to).at(edge.key_to));
         } catch (...) {
           // ignore
         }
 
       } else {
         if (gnc_weights.size() > i && gnc_weights(i) < 0.5) {
-          edge.type = pose_graph_tools_msgs::PoseGraphEdge::REJECTED_LOOPCLOSE;
+          edge.type = nav_interfaces::msg::PoseGraphEdge::REJECTED_LOOPCLOSE;
         } else {
-          edge.type = pose_graph_tools_msgs::PoseGraphEdge::LOOPCLOSE;
+          edge.type = nav_interfaces::msg::PoseGraphEdge::LOOPCLOSE;
         }
       }
       // transforms - translation
@@ -112,7 +113,7 @@ GraphMsgPtr GtsamGraphToRos(const gtsam::NonlinearFactorGraph& factors,
     }
   }
 
-  std::vector<pose_graph_tools_msgs::PoseGraphNode> nodes;
+  std::vector<nav_interfaces::msg::PoseGraphNode> nodes;
   // Then store the values as nodes
   gtsam::KeyVector key_list = values.keys();
   for (size_t i = 0; i < key_list.size(); i++) {
@@ -120,7 +121,7 @@ GraphMsgPtr GtsamGraphToRos(const gtsam::NonlinearFactorGraph& factors,
     if (robot_prefix_to_id.count(node_symb.chr())) {
       const size_t robot_id = robot_prefix_to_id.at(node_symb.chr());
 
-      pose_graph_tools_msgs::PoseGraphNode node;
+      nav_interfaces::msg::PoseGraphNode node;
       node.header.frame_id = frame_id;
       node.key = node_symb.index();
       node.robot_id = robot_id;
@@ -140,20 +141,20 @@ GraphMsgPtr GtsamGraphToRos(const gtsam::NonlinearFactorGraph& factors,
 
       if (timestamps.count(robot_id) == 0 ||
           timestamps.at(robot_id).size() <= node_symb.index()) {
-        ROS_WARN_ONCE(
+        RCLCPP_WARN_ONCE(rclcpp::get_logger("gtsam_conversions"),
             "Invalid timestamp for trajectory poses when converting to "
             "PoseGraph msg. ");
       } else {
-        node.header.stamp.fromNSec(timestamps.at(robot_id).at(node_symb.index()));
+        node.header.stamp = rclcpp::Time(timestamps.at(robot_id).at(node_symb.index()));
       }
 
       nodes.push_back(node);
     }
   }
 
-  pose_graph_tools_msgs::PoseGraph::Ptr posegraph(
-      new pose_graph_tools_msgs::PoseGraph());
-  posegraph->header.stamp = ros::Time::now();
+  nav_interfaces::msg::PoseGraph::SharedPtr posegraph(
+      new nav_interfaces::msg::PoseGraph());
+  posegraph->header.stamp = rclcpp::Time(msg_stamp);
   posegraph->header.frame_id = frame_id;
   posegraph->nodes = nodes;
   posegraph->edges = edges;
