@@ -52,7 +52,7 @@ void declare_config(MeshPublisherNode::Config& config) {
 }
 
 MeshPublisherNode::MeshPublisherNode()
-    : Node("mesh_publisher_node"), config(config::checkValid(config::fromRos<Config>(*this))) {
+    : Node("mesh_publisher_node"), config(config::checkValid(config::fromRos<Config>(this->shared_from_this()))) {
   RCLCPP_INFO_STREAM(get_logger(), "Starting publisher node with\n" << config::toString(config));
   pub_ = this->create_publisher<KimeraPgmoMesh>("mesh", 1);
   publishMesh();

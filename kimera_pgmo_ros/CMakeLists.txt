@@ -29,7 +29,7 @@ add_library(${PROJECT_NAME}
 )
 target_include_directories(${PROJECT_NAME} PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
+    $<INSTALL_INTERFACE:include/>)
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC kimera_pgmo::kimera_pgmo 
@@ -81,13 +81,21 @@ endif()
 # endif()
 
 install(
-  TARGETS ${PROJECT_NAME} 
+  TARGETS ${PROJECT_NAME}
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+ament_export_dependencies(
+  kimera_pgmo_msgs
+  nav_msgs
+  std_srvs
+  nav_interfaces
+  pose_graph_tools_ros
+  visualization_msgs
+)
 
 install(
   TARGETS kimera_pgmo_node mesh_frontend_node
@@ -95,7 +103,7 @@ install(
 )
 
 install(DIRECTORY include/ 
-        DESTINATION include/${PROJECT_NAME})
+        DESTINATION include/\)
 
 install(DIRECTORY launch
         DESTINATION share/${PROJECT_NAME}/)

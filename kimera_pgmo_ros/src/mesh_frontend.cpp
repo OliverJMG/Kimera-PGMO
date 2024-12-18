@@ -34,8 +34,8 @@ void declare_config(MeshFrontend::Config& config) {
 
 MeshFrontend::MeshFrontend()
     : Node("mesh_frontend_node"), 
-    MeshFrontendInterface(config::fromRos<kimera_pgmo::MeshFrontend::Config>(*this)), 
-    config(config::fromRos<kimera_pgmo::MeshFrontend::Config>(*this)) {
+    MeshFrontendInterface(config::fromRos<kimera_pgmo::MeshFrontend::Config>(this->shared_from_this())), 
+    config(config::fromRos<kimera_pgmo::MeshFrontend::Config>(this->shared_from_this())) {
   full_pub_ = create_publisher<KimeraPgmoMesh>("full_mesh", 1);
   simplified_pub_ = create_publisher<KimeraPgmoMesh>("deformation_graph_mesh", 10);
   mesh_graph_pub_ = create_publisher<PoseGraph>("mesh_graph_incremental", 100);

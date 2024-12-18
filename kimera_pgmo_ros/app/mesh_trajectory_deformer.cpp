@@ -42,7 +42,7 @@ void declare_config(InputConfig& config) {
 class MeshTrajectoryDeformer : public rclcpp::Node, KimeraPgmoInterface {
  public:
   explicit MeshTrajectoryDeformer() : Node("mesh_trajectory_deformer"), 
-          inputs(config::fromRos<kimera_pgmo::InputConfig>(*this)) {}
+          inputs(config::fromRos<kimera_pgmo::InputConfig>(this->shared_from_this())) {}
 
   ~MeshTrajectoryDeformer() {}
 
@@ -221,7 +221,7 @@ auto main(int argc, char* argv[]) -> int {
 
   auto deformer = std::make_shared<kimera_pgmo::MeshTrajectoryDeformer>();
 
-  const auto config = config::fromRos<kimera_pgmo::KimeraPgmoConfig>(*deformer);
+  const auto config = config::fromRos<kimera_pgmo::KimeraPgmoConfig>(deformer);
   if (!deformer->initialize(config)) {
     return EXIT_FAILURE;
   }

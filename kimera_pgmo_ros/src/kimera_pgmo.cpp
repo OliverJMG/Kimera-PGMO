@@ -63,7 +63,7 @@ KimeraPgmo::~KimeraPgmo() {
 
 // Initialize parameters, publishers, and subscribers and deformation graph
 bool KimeraPgmo::initFromRos() {
-  config_ = config::fromRos<KimeraPgmo::Config>(*this);
+  config_ = config::fromRos<KimeraPgmo::Config>(this->shared_from_this());
   initialize(config_);
 
   if (config_.log_path != "") {
