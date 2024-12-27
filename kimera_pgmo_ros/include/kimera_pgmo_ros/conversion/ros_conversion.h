@@ -1,40 +1,40 @@
 #pragma once
 #include "kimera_pgmo/mesh_traits.h"
-#include "kimera_pgmo_msgs/KimeraPgmoMesh.h"
+#include "kimera_pgmo_msgs/msg/kimera_pgmo_mesh.hpp"
 
 namespace kimera_pgmo::conversions {
 
 /**
- * @brief Fill mesh_msgs::TriangleMesh message from mesh
+ * @brief Fill KimeraPgmoMesh message from mesh
  * @param vertices Mesh vertices to export
  * @param faces Mesh faces to export
  * @param vertex_indices Optional vertex indices to export
  */
 template <typename Vertices, typename Faces>
-kimera_pgmo_msgs::KimeraPgmoMesh toMsg(const Vertices& vertices,
+kimera_pgmo_msgs::msg::KimeraPgmoMesh::UniquePtr toMsg(const Vertices& vertices,
                                        const Faces& faces,
                                        std::vector<int>* vertex_indices = nullptr) {
-  kimera_pgmo_msgs::KimeraPgmoMesh msg;
+  auto msg = std::make_unique<kimera_pgmo_msgs::msg::KimeraPgmoMesh>();
   const auto num_vertices = traits::num_vertices(vertices);
   if (!num_vertices) {
-    return msg;
+    return std::move(msg);
   }
 
   // Convert vertices
-  msg.vertices.resize(num_vertices);
-  msg.vertex_colors.resize(num_vertices);
-  msg.vertex_stamps.reserve(num_vertices);
+  msg->vertices.resize(num_vertices);
+  msg->vertex_colors.resize(num_vertices);
+  msg->vertex_stamps.reserve(num_vertices);
   constexpr float color_conversion = 1.0f / 255.0f;
   for (size_t i = 0; i < num_vertices; ++i) {
     traits::VertexTraits traits;
     const auto pos = traits::get_vertex(vertices, i, &traits);
-    auto& p = msg.vertices[i];
+    auto& p = msg->vertices[i];
     p.x = pos.x();
     p.y = pos.y();
     p.z = pos.z();
 
     // Optional point color
-    auto& c = msg.vertex_colors[i];
+    auto& c = msg->vertex_colors[i];
     if (traits.color) {
       c.r = traits.color->at(0) * color_conversion;
       c.g = traits.color->at(1) * color_conversion;
@@ -49,20 +49,20 @@ kimera_pgmo_msgs::KimeraPgmoMesh toMsg(const Vertices& vertices,
 
     // Optional point stamp
     if (traits.stamp) {
-      msg.vertex_stamps.emplace_back().fromNSec(*traits.stamp);
+      msg->vertex_stamps.emplace_back(rclcpp::Time(*traits.stamp));
     }
   }
 
   // Vertex indices
   if (vertex_indices) {
-    msg.vertex_indices = *vertex_indices;
+    msg->vertex_indices = *vertex_indices;
   }
 
   // Convert polygons
   const auto num_faces = traits::num_faces(faces);
-  msg.triangles.resize(num_faces);
+  msg->triangles.resize(num_faces);
   for (size_t i = 0; i < num_faces; i++) {
-    auto& triangle = msg.triangles[i];
+    auto& triangle = msg->triangles[i];
     const auto face = traits::get_face(faces, i);
     triangle.vertex_indices[0] = face[0];
     triangle.vertex_indices[1] = face[1];
@@ -78,10 +78,10 @@ kimera_pgmo_msgs::KimeraPgmoMesh toMsg(const Vertices& vertices,
  * @param vertex_indices Optional vertex indices to export
  */
 template <typename Mesh>
-kimera_pgmo_msgs::KimeraPgmoMesh toMsg(const Mesh& mesh,
+kimera_pgmo_msgs::msg::KimeraPgmoMesh::UniquePtr toMsg(const Mesh& mesh,
                                        std::vector<int>* vertex_indices = nullptr) {
   // dispatch meshes that implement face and vertex traits
-  return toMsg(mesh, mesh, vertex_indices);
+  return std::move(toMsg(mesh, mesh, vertex_indices));
 }
 
 /**
@@ -92,7 +92,7 @@ kimera_pgmo_msgs::KimeraPgmoMesh toMsg(const Mesh& mesh,
  * @param vertex_indices Optional vertex indices to fill
  */
 template <typename Vertices, typename Faces>
-void fromMsg(const kimera_pgmo_msgs::KimeraPgmoMesh& msg,
+void fromMsg(const kimera_pgmo_msgs::msg::KimeraPgmoMesh& msg,
              Vertices& vertices,
              Faces& faces,
              std::vector<int>* vertex_indices = nullptr) {
@@ -116,7 +116,7 @@ void fromMsg(const kimera_pgmo_msgs::KimeraPgmoMesh& msg,
                                    static_cast<uint8_t>(c.a * 255.0f)};
     }
     if (msg.vertex_stamps.size() > i) {
-      traits.stamp = msg.vertex_stamps[i].toNSec();
+      traits.stamp = rclcpp::Time(msg.vertex_stamps[i]).nanoseconds();
     }
 
     traits::set_vertex(vertices, i, pos, traits);
@@ -146,7 +146,7 @@ void fromMsg(const kimera_pgmo_msgs::KimeraPgmoMesh& msg,
  * @param vertex_indices Optional vertex indices to fill
  */
 template <typename Mesh>
-void fromMsg(const kimera_pgmo_msgs::KimeraPgmoMesh& msg,
+void fromMsg(const kimera_pgmo_msgs::msg::KimeraPgmoMesh& msg,
              Mesh& mesh,
              std::vector<int>* vertex_indices = nullptr) {
   // dispatch meshes that implement face and vertex traits

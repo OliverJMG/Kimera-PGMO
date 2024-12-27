@@ -61,8 +61,8 @@ MeshDelta::Ptr fromMsg(const KimeraPgmoMeshDelta& msg) {
   return delta;
 }
 
-KimeraPgmoMeshDelta::ConstSharedPtr toRosMsg(const MeshDelta& delta, uint64_t timestamp_ns) {
-  KimeraPgmoMeshDelta::SharedPtr msg(new KimeraPgmoMeshDelta());
+KimeraPgmoMeshDelta::UniquePtr toRosMsg(const MeshDelta& delta, uint64_t timestamp_ns) {
+  KimeraPgmoMeshDelta::UniquePtr msg(new KimeraPgmoMeshDelta());
   msg->header.stamp = rclcpp::Time(timestamp_ns);
   msg->vertex_start = delta.vertex_start;
   msg->face_start = delta.face_start;

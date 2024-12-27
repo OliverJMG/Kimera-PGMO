@@ -14,7 +14,7 @@ namespace kimera_pgmo::conversions {
 
 MeshDelta::Ptr fromMsg(const kimera_pgmo_msgs::msg::KimeraPgmoMeshDelta& msg);
 
-kimera_pgmo_msgs::msg::KimeraPgmoMeshDelta::ConstSharedPtr toRosMsg(const MeshDelta& delta,
+kimera_pgmo_msgs::msg::KimeraPgmoMeshDelta::UniquePtr toRosMsg(const MeshDelta& delta,
                                                          Timestamp timestamp_ns);
 
 }  // namespace kimera_pgmo::conversions

@@ -69,7 +69,7 @@ std::optional<TfEventBuffer::Update> TfEventBuffer::getTransform(const std::stri
     return result;
   }
   if (!frame_manager_->getTransform(
-          query.target_frame, rclcpp::Time(), result.position, result.orientation)) {
+          query.target_frame, rclcpp::Time(0, 0, RCL_ROS_TIME), result.position, result.orientation)) {
     return std::nullopt;
   }
   query.position = result.position;

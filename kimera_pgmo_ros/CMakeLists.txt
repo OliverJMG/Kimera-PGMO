@@ -19,7 +19,7 @@ find_package(tf2_ros REQUIRED)
 find_package(visualization_msgs REQUIRED)
 
 
-add_library(${PROJECT_NAME}  
+add_library(${PROJECT_NAME} SHARED
   src/conversion/gtsam_conversions.cpp
   src/kimera_pgmo.cpp
   src/conversion/mesh_conversion.cpp
@@ -103,7 +103,7 @@ install(
 )
 
 install(DIRECTORY include/ 
-        DESTINATION include/\)
+        DESTINATION include/)
 
 install(DIRECTORY launch
         DESTINATION share/${PROJECT_NAME}/)
